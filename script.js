@@ -16,16 +16,118 @@
   const W = canvas.width;
   const H = canvas.height;
 
-  // ===== 効果音 (プレースホルダ) =====
-  const SFX = {
-    fire:null, hit:null, miss:null, swish:null,
-    select:null, start:null, result:null, green:null, bank:null, super:null,
-    talk:null,
-  };
-  function playSfx(name) {
-    const a = SFX[name];
-    if (a) { try { a.currentTime = 0; a.play(); } catch (e) {} }
-  }
+  // ===== オーディオ =====
+  const AudioManager = (() => {
+    let ctx = null;
+    let bgmPlaying = null;
+    let bgmTimeout = null;
+
+    function init() {
+      if (ctx) {
+        if (ctx.state === 'suspended') ctx.resume();
+        return;
+      }
+      try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+    }
+
+    function tone(freq, type, vol, startOffset, dur) {
+      if (!ctx) return;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = type;
+      const t = ctx.currentTime + startOffset;
+      if (Array.isArray(freq)) {
+        o.frequency.setValueAtTime(freq[0], t);
+        o.frequency.exponentialRampToValueAtTime(freq[1], t + dur);
+      } else {
+        o.frequency.value = freq;
+      }
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.start(t);
+      o.stop(t + dur + 0.01);
+    }
+
+    const SFX_MAP = {
+      select:  () => tone(600, 'square', 0.3, 0, 0.05),
+      start:   () => { tone(440, 'square', 0.25, 0, 0.15); tone(660, 'square', 0.25, 0.12, 0.2); },
+      fire:    () => tone([300, 80], 'sawtooth', 0.3, 0, 0.2),
+      hit:     () => tone(120, 'sine', 0.4, 0, 0.15),
+      miss:    () => tone([400, 150], 'triangle', 0.25, 0, 0.4),
+      swish:   () => tone(880, 'sine', 0.3, 0, 0.3),
+      bank:    () => tone(220, 'square', 0.25, 0, 0.12),
+      green:   () => { tone(523, 'sine', 0.25, 0, 0.2); tone(784, 'sine', 0.25, 0.08, 0.2); },
+      super:   () => { tone(523, 'sine', 0.3, 0, 0.2); tone(659, 'sine', 0.3, 0.1, 0.2); tone(784, 'sine', 0.3, 0.2, 0.25); },
+      result:  () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 'sine', 0.25, i * 0.12, 0.15)),
+      talk:    () => tone(400 + Math.random() * 200, 'square', 0.08, 0, 0.02),
+    };
+
+    const BGM_SEQUENCES = {
+      title: {
+        notes: [
+          [261,'square',0.10, 0.0, 0.4], [329,'square',0.08, 0.5, 0.4],
+          [392,'square',0.08, 1.0, 0.4], [329,'square',0.08, 1.5, 0.4],
+          [261,'square',0.10, 2.0, 0.4], [293,'square',0.08, 2.5, 0.4],
+          [329,'square',0.08, 3.0, 0.8],
+        ],
+        loopMs: 4000,
+      },
+      game: {
+        notes: [
+          [392,'square',0.10, 0.00, 0.18], [392,'square',0.08, 0.25, 0.18],
+          [440,'square',0.10, 0.50, 0.18], [392,'square',0.08, 0.75, 0.18],
+          [349,'square',0.10, 1.00, 0.35], [329,'square',0.08, 1.50, 0.35],
+          [392,'square',0.10, 2.00, 0.18], [392,'square',0.08, 2.25, 0.18],
+          [440,'square',0.10, 2.50, 0.18], [494,'square',0.08, 2.75, 0.18],
+          [523,'square',0.12, 3.00, 0.70],
+        ],
+        loopMs: 4000,
+      },
+      result_good: {
+        notes: [
+          [523,'sine',0.12, 0.0, 0.18], [659,'sine',0.12, 0.2, 0.18],
+          [784,'sine',0.12, 0.4, 0.18], [1047,'sine',0.12, 0.6, 0.35],
+          [784,'sine',0.10, 1.1, 0.18], [659,'sine',0.10, 1.3, 0.55],
+        ],
+        loopMs: 2000,
+      },
+      result_bad: {
+        notes: [
+          [392,'triangle',0.10, 0.0, 0.38],
+          [349,'triangle',0.10, 0.5, 0.38],
+          [329,'triangle',0.10, 1.0, 0.75],
+        ],
+        loopMs: 2000,
+      },
+    };
+
+    function scheduleBgm(name) {
+      if (bgmPlaying !== name || !ctx) return;
+      const seq = BGM_SEQUENCES[name];
+      seq.notes.forEach(([f, type, vol, offset, dur]) => tone(f, type, vol, offset, dur));
+      bgmTimeout = setTimeout(() => scheduleBgm(name), seq.loopMs - 50);
+    }
+
+    return {
+      init,
+      play(name) {
+        init();
+        const fn = SFX_MAP[name];
+        if (fn) fn();
+      },
+      playBgm(name) {
+        init();
+        this.stopBgm();
+        bgmPlaying = name;
+        scheduleBgm(name);
+      },
+      stopBgm() {
+        bgmPlaying = null;
+        if (bgmTimeout) { clearTimeout(bgmTimeout); bgmTimeout = null; }
+      },
+    };
+  })();
 
   // ===== ストレージ =====
   const Storage = (() => {
@@ -182,6 +284,9 @@
     currentState = state;
     document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
     if (state === STATE.TITLE) updateBestScoreDisplay();
+    if      (state === STATE.TITLE) AudioManager.playBgm('title');
+    else if (state === STATE.GAME)  AudioManager.playBgm('game');
+    else if (state === STATE.MHS)   AudioManager.stopBgm();
     const map = {
       [STATE.TITLE]:  'screen-title',
       [STATE.MHS]:    'screen-mhs',
@@ -193,7 +298,8 @@
 
   // ===== タイトル → MHS =====
   document.querySelector('[data-action="goto-mhs"]').addEventListener('click', () => {
-    playSfx('select');
+    AudioManager.init();
+    AudioManager.play('select');
     switchScreen(STATE.MHS);
   });
 
@@ -202,7 +308,7 @@
   const btnStartGame = document.getElementById('btn-start-game');
   mhsCards.forEach(card => {
     card.addEventListener('click', () => {
-      playSfx('select');
+      AudioManager.play('select');
       mhsCards.forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
       player.focus = card.dataset.mhs;
@@ -211,7 +317,7 @@
   });
   btnStartGame.addEventListener('click', () => {
     if (btnStartGame.disabled) return;
-    playSfx('start');
+    AudioManager.play('start');
     startGame();
   });
 
@@ -340,7 +446,7 @@
         showMsg('GOAL STARTS MOVING!', 'warn', 1700);
       } else if (player.ballColor === 'green') {
         showMsg('GREEN BALL - HIGH RISK / HIGH REWARD', 'bonus', 1500);
-        playSfx('green');
+        AudioManager.play('green');
       } else if (nextNum === 10) {
         showMsg('FINAL SHOT!', 'super', 1400);
       }
@@ -382,7 +488,7 @@
     };
     trail = [];
     phase = PHASE.FLY;
-    playSfx('fire');
+    AudioManager.play('fire');
   }
 
   // ===== HUD =====
@@ -418,12 +524,13 @@
   // ===== 入力 =====
   const keysHeld = {};
   window.addEventListener('keydown', e => {
+    AudioManager.init();
     // タイトル
     if (currentState === STATE.TITLE) {
       if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault();
         if (!e.repeat) {
-          playSfx('select');
+          AudioManager.play('select');
           switchScreen(STATE.MHS);
         }
       }
@@ -690,7 +797,7 @@
     const prefix = isAgainstWind ? 'AGAINST WIND! ' : '';
     const sx = streakMul > 1.0 ? ` x${streakMul.toFixed(2)}` : '';
     showMsg(`${prefix}${head} +${gained}${sx}`, kind, 1500);
-    playSfx(sfxName);
+    AudioManager.play(sfxName);
 
     const g = goalRect();
     const cx = (g.zone.x1 + g.zone.x2) / 2;
@@ -725,7 +832,7 @@
       } else {
         showMsg('MISS...', 'miss', 1000);
       }
-      playSfx('miss');
+      AudioManager.play('miss');
     }
 
     const justFinishedIdx = player.shot;
@@ -1409,7 +1516,7 @@
     dialogue.typingTimer = setInterval(() => {
       dialogue.typingPos++;
       dialogueTextEl.textContent = dialogue.typingFull.slice(0, dialogue.typingPos);
-      playSfx('talk');
+      AudioManager.play('talk');
       if (dialogue.typingPos >= dialogue.typingFull.length) {
         clearInterval(dialogue.typingTimer);
         dialogue.typingTimer = null;
@@ -1487,7 +1594,9 @@
     const rankSuffix = (myRank === 1) ? 'ST' : (myRank === 2) ? 'ND' : (myRank === 3) ? 'RD' : 'TH';
     document.getElementById('result-rank').textContent = `${myRank}${rankSuffix} PLACE`;
 
-    playSfx('result');
+    AudioManager.play('result');
+    const bgmName = myRank <= 3 ? 'result_good' : 'result_bad';
+    AudioManager.playBgm(bgmName);
     const isNew = Storage.isNewRecord(player.score, myRank);
     Storage.save(player.score, myRank);
     if (isNew) {
@@ -1506,12 +1615,12 @@
 
   // 結果ボタン
   document.getElementById('btn-retry').addEventListener('click', () => {
-    playSfx('select');
+    AudioManager.play('select');
     resetDialogue();
     startGame();
   });
   document.getElementById('btn-back-title').addEventListener('click', () => {
-    playSfx('select');
+    AudioManager.play('select');
     clearSettleTimer();
     resetDialogue();
     mhsCards.forEach(c => c.classList.remove('selected'));
