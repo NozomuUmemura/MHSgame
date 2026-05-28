@@ -748,6 +748,7 @@
   }
 
   function update() {
+    if (currentState === STATE.DODGE) { updateDodge(); return; }
     if (currentState !== STATE.GAME) return;
     updateGoal();
     updateWindParticles();
@@ -973,6 +974,7 @@
 
   // ===== 描画 =====
   function render() {
+    if (currentState === STATE.DODGE) { renderDodge(); return; }
     if (currentState !== STATE.GAME) return;
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
@@ -1754,6 +1756,180 @@
     windParticles = [];
     switchScreen(STATE.TITLE);
   });
+
+  // ===== 自分との闘い =====
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  const DODGE_BOX_SIZES = {
+    1: { w: 220, h: 160 },
+    2: { w: 170, h: 130 },
+    3: { w: 260, h: 190 },
+  };
+
+  const DODGE = {
+    box:       { x: 290, y: 170, w: 220, h: 160 },
+    boxFrom:   { w: 220, h: 160 },
+    boxTarget: { w: 220, h: 160 },
+    boxTween:  1,
+    heart:     { x: 400, y: 250 },
+    hp: 10, maxHp: 10, invincible: 0,
+    phase: 1,
+    startTime: 0,
+    elapsed: 0,
+    difficulty: 0,
+    bullets: [],
+    nextBulletTime: 0,
+    survivalMs: 0,
+    finalPhase: 1,
+  };
+
+  function startDodgeGame() {
+    const lastScore = parseInt(localStorage.getItem('mhsc_last_score') || '0', 10);
+    DODGE.difficulty = Math.min(1.0, lastScore / 200);
+    DODGE.hp = 10;
+    DODGE.invincible = 0;
+    DODGE.phase = 1;
+    DODGE.bullets = [];
+    DODGE.box = { x: 290, y: 170, w: 220, h: 160 };
+    DODGE.boxFrom   = { w: 220, h: 160 };
+    DODGE.boxTarget = { w: 220, h: 160 };
+    DODGE.boxTween  = 1;
+    DODGE.heart     = { x: 400, y: 250 };
+    DODGE.startTime = performance.now();
+    DODGE.elapsed   = 0;
+    DODGE.nextBulletTime = performance.now() + 1500;
+    DODGE.survivalMs = 0;
+    DODGE.finalPhase = 1;
+    switchScreen(STATE.DODGE);
+  }
+
+  function bindDodgeKey(id, code) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const start = ev => { ev.preventDefault(); keysHeld[code] = true; };
+    const stop  = ev => { if (ev) ev.preventDefault(); keysHeld[code] = false; };
+    el.addEventListener('mousedown',  start);
+    el.addEventListener('touchstart', start, { passive: false });
+    el.addEventListener('mouseup',    stop);
+    el.addEventListener('mouseleave', stop);
+    el.addEventListener('touchend',   stop);
+    el.addEventListener('touchcancel',stop);
+    el.addEventListener('click', ev => ev.preventDefault());
+  }
+  bindDodgeKey('dodge-btn-up',    'ArrowUp');
+  bindDodgeKey('dodge-btn-down',  'ArrowDown');
+  bindDodgeKey('dodge-btn-left',  'ArrowLeft');
+  bindDodgeKey('dodge-btn-right', 'ArrowRight');
+
+  function updateDodge() {
+    DODGE.elapsed = performance.now() - DODGE.startTime;
+
+    if (DODGE.phase === 1 && DODGE.elapsed >= 15000) enterDodgePhase(2);
+    else if (DODGE.phase === 2 && DODGE.elapsed >= 30000) enterDodgePhase(3);
+
+    const spd = DODGE.phase === 2 ? 2.5 : 3.0;
+    const box = DODGE.box, h = DODGE.heart, r = 6;
+    if (keysHeld['ArrowLeft']  || keysHeld['KeyA']) h.x = Math.max(box.x + r + 1, h.x - spd);
+    if (keysHeld['ArrowRight'] || keysHeld['KeyD']) h.x = Math.min(box.x + box.w - r - 1, h.x + spd);
+    if (keysHeld['ArrowUp']    || keysHeld['KeyW']) h.y = Math.max(box.y + r + 1, h.y - spd);
+    if (keysHeld['ArrowDown']  || keysHeld['KeyS']) h.y = Math.min(box.y + box.h - r - 1, h.y + spd);
+
+    if (DODGE.boxTween < 1) {
+      DODGE.boxTween = Math.min(1, DODGE.boxTween + 0.033);
+      const t = DODGE.boxTween;
+      DODGE.box.w = lerp(DODGE.boxFrom.w, DODGE.boxTarget.w, t);
+      DODGE.box.h = lerp(DODGE.boxFrom.h, DODGE.boxTarget.h, t);
+      DODGE.box.x = 400 - DODGE.box.w / 2;
+      DODGE.box.y = 250 - DODGE.box.h / 2;
+      DODGE.heart.x = Math.max(box.x + r + 1, Math.min(box.x + box.w - r - 1, DODGE.heart.x));
+      DODGE.heart.y = Math.max(box.y + r + 1, Math.min(box.y + box.h - r - 1, DODGE.heart.y));
+    }
+
+    updateDodgeBullets();
+
+    if (performance.now() >= DODGE.nextBulletTime) {
+      spawnRandomDodgePattern();
+      const d = DODGE.difficulty, p = DODGE.phase;
+      const interval = p === 1 ? (1400 - d * 600) : p === 2 ? (1100 - d * 500) : (800 - d * 400);
+      DODGE.nextBulletTime = performance.now() + Math.max(300, interval);
+    }
+
+    if (flashAlpha > 0) flashAlpha = Math.max(0, flashAlpha - 0.04);
+  }
+
+  function enterDodgePhase(phase) {
+    DODGE.phase = phase;
+    DODGE.boxFrom   = { w: DODGE.box.w, h: DODGE.box.h };
+    DODGE.boxTarget = { ...DODGE_BOX_SIZES[phase] };
+    DODGE.boxTween  = 0;
+    DODGE.bullets   = [];
+    AudioManager.play('start');
+  }
+
+  function drawDodgeHeart(cx, cy, color, blink) {
+    if (blink && Math.floor(performance.now() / 80) % 2 === 0) return;
+    const p = 2;
+    const pixels = [
+      [1,0],[2,0],[4,0],[5,0],
+      [0,1],[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],
+      [0,2],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],
+      [1,3],[2,3],[3,3],[4,3],[5,3],
+      [2,4],[3,4],[4,4],
+      [3,5],
+    ];
+    ctx.fillStyle = color || '#e61c3b';
+    const ox = cx - 3 * p, oy = cy - 3 * p;
+    pixels.forEach(([c, r]) => ctx.fillRect(ox + c * p, oy + r * p, p, p));
+  }
+
+  function renderDodge() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    drawStars();
+
+    const box = DODGE.box;
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.fillRect(box.x, box.y, box.w, box.h);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(box.x, box.y, box.w, box.h);
+
+    renderDodgeBullets();
+
+    drawDodgeHeart(DODGE.heart.x, DODGE.heart.y, '#e61c3b', DODGE.invincible > 0);
+
+    const hpY = box.y - 18;
+    for (let i = 0; i < DODGE.maxHp; i++) {
+      const color = i < DODGE.hp ? '#e61c3b' : '#4a0000';
+      drawDodgeHeart(box.x + 6 + i * 14, hpY, color, false);
+    }
+
+    pixelText(`${(DODGE.elapsed / 1000).toFixed(1)}s`, box.x + box.w, box.y - 18, 8, '#fff', 'right');
+    pixelText(`PHASE ${DODGE.phase}/3`, box.x, box.y - 18, 7, '#7cfc00', 'left');
+
+    if (flashAlpha > 0) {
+      ctx.fillStyle = `rgba(${flashColor},${flashAlpha})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    drawBorder();
+  }
+
+  function renderDodgeBullets() {
+    for (const b of DODGE.bullets) {
+      ctx.fillStyle = b.color || '#fff';
+      if (b.type === 'circle') {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (b.type === 'rect' || b.type === 'hbar') {
+        ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+      }
+    }
+  }
+
+  // Placeholders — implemented in Task 5
+  function updateDodgeBullets() {}
+  function spawnRandomDodgePattern() {}
 
   // ===== 起動 =====
   switchScreen(STATE.TITLE);
