@@ -571,3 +571,6 @@ body { display: flex; justify-content: center; align-items: center; }
   0%, 100% { transform: scale(1.0); }
   50%       { transform: scale(1.15); }
 }
+
+#btn-dodge { color: #e61c3b; border-color: #e61c3b; }
+#btn-dodge:hover:not(:disabled) { background: #e61c3b; color: #fff; }
