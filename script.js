@@ -261,7 +261,7 @@
     // 既存のショット告知メッセージの後に表示
     setTimeout(() => {
       if (currentEvent) showMsg(currentEvent.label, currentEvent.msgKind, 1600);
-    }, 900);
+    }, 150);
   }
 
   // ===== 風 =====
