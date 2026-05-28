@@ -251,8 +251,12 @@
     const isGreen = player.ballColor === 'green';
     if (Math.random() > (isGreen ? 0.15 : 0.35)) return;
 
-    // FAST はゴールが動き始める shot 6 以降のみ
-    const available = EVENTS.filter(e => e.id !== 'FAST' || shotNum >= 6);
+    // FAST はゴールが動き始める shot 6 以降のみ、BONUS_GREEN は既に緑球でない場合のみ
+    const available = EVENTS.filter(e => {
+      if (e.id === 'FAST' && shotNum < 6) return false;
+      if (e.id === 'BONUS_GREEN' && player.ballColor === 'green') return false;
+      return true;
+    });
     currentEvent = available[Math.floor(Math.random() * available.length)];
     eventCountThisGame++;
 
