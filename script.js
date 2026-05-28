@@ -1790,6 +1790,7 @@
     nextBulletTime: 0,
     survivalMs: 0,
     finalPhase: 1,
+    active: false,
   };
 
   function startDodgeGame() {
@@ -1809,6 +1810,7 @@
     DODGE.nextBulletTime = performance.now() + 1500;
     DODGE.survivalMs = 0;
     DODGE.finalPhase = 1;
+    DODGE.active = true;
     switchScreen(STATE.DODGE);
   }
 
@@ -2083,6 +2085,8 @@
   }
 
   function endDodgeGame() {
+    if (!DODGE.active) return;
+    DODGE.active = false;
     DODGE.survivalMs  = DODGE.elapsed;
     DODGE.finalPhase  = DODGE.phase;
     AudioManager.play('miss');
