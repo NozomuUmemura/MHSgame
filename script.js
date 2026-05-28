@@ -232,6 +232,38 @@
     }
   }
 
+  // ===== 特殊イベント =====
+  const EVENTS = [
+    { id: 'GUST',        kind: 'pinch', label: 'EVENT: GUST!',        msgKind: 'warn'  },
+    { id: 'NARROW',      kind: 'pinch', label: 'EVENT: NARROW RIM!',  msgKind: 'warn'  },
+    { id: 'FAST',        kind: 'pinch', label: 'EVENT: SPEED UP!',    msgKind: 'warn'  },
+    { id: 'DOUBLE',      kind: 'bonus', label: 'EVENT: 2x ZONE!',     msgKind: 'bonus' },
+    { id: 'SLOW_WIND',   kind: 'bonus', label: 'EVENT: CALM!',        msgKind: 'bonus' },
+    { id: 'BONUS_GREEN', kind: 'bonus', label: 'EVENT: BONUS BALL!',  msgKind: 'bonus' },
+  ];
+  let currentEvent = null;
+  let eventCountThisGame = 0;
+
+  function trySpawnEvent() {
+    const shotNum = player.shot + 1; // 1-based (1〜10)
+    if (shotNum < 2 || shotNum > 9) return;
+    if (eventCountThisGame >= 3) return;
+    const isGreen = player.ballColor === 'green';
+    if (Math.random() > (isGreen ? 0.15 : 0.35)) return;
+
+    // FAST はゴールが動き始める shot 6 以降のみ
+    const available = EVENTS.filter(e => e.id !== 'FAST' || shotNum >= 6);
+    currentEvent = available[Math.floor(Math.random() * available.length)];
+    eventCountThisGame++;
+
+    if (currentEvent.id === 'BONUS_GREEN') player.ballColor = 'green';
+
+    // 既存のショット告知メッセージの後に表示
+    setTimeout(() => {
+      if (currentEvent) showMsg(currentEvent.label, currentEvent.msgKind, 1600);
+    }, 900);
+  }
+
   // ===== 風 =====
   // 1投ごとに方向と強さを決め、その投球中は一定
   // accel: 毎フレームの vx 加速度
@@ -259,8 +291,13 @@
   // 風の有効加速度 (Focusで補正)
   function effectiveWindAccel() {
     if (!currentWind) return 0;
-    const f = (player.focus === 'M') ? 0.5 : 1.0; // Mは球が重く半減
-    return currentWind.accel * f;
+    const f = (player.focus === 'M') ? 0.5 : 1.0;
+    let evMul = 1.0;
+    if (currentEvent) {
+      if (currentEvent.id === 'GUST')      evMul = 2.0;
+      if (currentEvent.id === 'SLOW_WIND') evMul = 0.3;
+    }
+    return currentWind.accel * f * evMul;
   }
 
   // ===== メッセージ =====
@@ -383,6 +420,8 @@
     flashAlpha = 0;
     goalOffsetX = 0;
     phase = PHASE.AIM;
+    currentEvent = null;
+    eventCountThisGame = 0;
 
     cpuProgressions = generateCpuProgressions();
     document.getElementById('hud-focus').textContent =
@@ -451,6 +490,8 @@
         showMsg('FINAL SHOT!', 'super', 1400);
       }
     }
+    currentEvent = null;
+    trySpawnEvent();
   }
 
   // ===== 発射 =====
@@ -616,7 +657,9 @@
   function getMoveFreq(shotIndex) {
     if (shotIndex < MOVE_START_SHOT) return 0;
     const phaseShot = shotIndex - MOVE_START_SHOT;
-    return 0.0009 + phaseShot * 0.00018;
+    const base = 0.0009 + phaseShot * 0.00018;
+    const fastMul = (currentEvent && currentEvent.id === 'FAST') ? 1.8 : 1.0;
+    return base * fastMul;
   }
   function computeGoalOffset(timeMs, shotIndex) {
     const amp = getMoveAmplitude(shotIndex);
@@ -631,6 +674,14 @@
 
   function goalRect() {
     const dx = goalOffsetX;
+    let zx1 = COURT.zone.x1 + dx;
+    let zx2 = COURT.zone.x2 + dx;
+    if (currentEvent && currentEvent.id === 'NARROW') {
+      const center = (zx1 + zx2) / 2;
+      const half   = (zx2 - zx1) * 0.6 / 2;
+      zx1 = center - half;
+      zx2 = center + half;
+    }
     return {
       dx,
       poleX:    COURT.poleX    + dx,
@@ -638,8 +689,8 @@
       rimRight: COURT.rimRight + dx,
       rimY:     COURT.rimY,
       zone: {
-        x1: COURT.zone.x1 + dx, x2: COURT.zone.x2 + dx,
-        y1: COURT.zone.y1,       y2: COURT.zone.y2,
+        x1: zx1, x2: zx2,
+        y1: COURT.zone.y1, y2: COURT.zone.y2,
       },
       bullseye: {
         x1: COURT.bullseye.x1 + dx, x2: COURT.bullseye.x2 + dx,
@@ -773,7 +824,8 @@
     player.streak += 1;
     const streakMul = getStreakMul();
 
-    const gained = Math.round(base * bankMul * streakMul);
+    const doubleMul = (currentEvent && currentEvent.id === 'DOUBLE') ? 2 : 1;
+    const gained = Math.round(base * bankMul * streakMul * doubleMul);
     player.score += gained;
 
     let head, kind, sfxName;
