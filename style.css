@@ -564,6 +564,7 @@ body { display: flex; justify-content: center; align-items: center; }
     4px 12px 0 0 #e61c3b, 8px 12px 0 0 #e61c3b, 12px 12px 0 0 #e61c3b, 16px 12px 0 0 #e61c3b, 20px 12px 0 0 #e61c3b,
     8px 16px 0 0 #e61c3b, 12px 16px 0 0 #e61c3b, 16px 16px 0 0 #e61c3b,
     12px 20px 0 0 #e61c3b;
+  transform-origin: 14px 12px;
   animation: heart-beat 0.8s ease-in-out infinite;
 }
 @keyframes heart-beat {
