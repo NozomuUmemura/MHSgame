@@ -616,6 +616,7 @@
       }
       return;
     }
+    if (currentState === STATE.DODGE) { keysHeld[e.code] = true; return; }
     if (currentState !== STATE.GAME) return;
     if (e.code === 'Space') {
       e.preventDefault();
@@ -1833,6 +1834,7 @@
   bindDodgeKey('dodge-btn-right', 'ArrowRight');
 
   function updateDodge() {
+    if (!DODGE.active) return;
     DODGE.elapsed = performance.now() - DODGE.startTime;
 
     if (DODGE.phase === 1 && DODGE.elapsed >= 15000) enterDodgePhase(2);
@@ -2052,8 +2054,10 @@
       b.y += b.vy;
 
       if (b.type === 'hbar' && b.stopY !== undefined) {
-        if ((b.vy > 0 && b.y >= b.stopY) || (b.vy < 0 && b.y <= b.stopY)) {
-          b.vx = 0; b.vy = 0;
+        if (!b.stopped && ((b.vy > 0 && b.y >= b.stopY) || (b.vy < 0 && b.y <= b.stopY))) {
+          b.vx = 0; b.vy = 0; b.stopped = true;
+        }
+        if (b.stopped) {
           b.life = (b.life || 60) - 1;
           if (b.life <= 0) { b.dead = true; continue; }
         }
