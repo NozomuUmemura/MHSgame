@@ -161,8 +161,14 @@
     el.textContent = `BEST  ${bestScore} pt  /  ${bestRank}${suf} PLACE`;
   }
 
+  function updateDodgeButtonVisibility() {
+    const el = document.getElementById('btn-dodge');
+    if (!el) return;
+    el.style.display = localStorage.getItem('mhsc_unlocked') === '1' ? 'inline-block' : 'none';
+  }
+
   // ===== 画面 =====
-  const STATE = { TITLE:'title', MHS:'mhs', GAME:'game', RESULT:'result' };
+  const STATE = { TITLE:'title', MHS:'mhs', GAME:'game', RESULT:'result', DODGE:'dodge', DODGE_RESULT:'dodge_result' };
   let currentState = STATE.TITLE;
 
   // ===== ショット進行 =====
@@ -324,15 +330,19 @@
   function switchScreen(state) {
     currentState = state;
     document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
-    if (state === STATE.TITLE) updateBestScoreDisplay();
-    if      (state === STATE.TITLE) AudioManager.playBgm('title');
-    else if (state === STATE.GAME)  AudioManager.playBgm('game');
-    else if (state === STATE.MHS)   AudioManager.stopBgm();
+    if (state === STATE.TITLE) { updateBestScoreDisplay(); updateDodgeButtonVisibility(); }
+    if      (state === STATE.TITLE)        AudioManager.playBgm('title');
+    else if (state === STATE.GAME)         AudioManager.playBgm('game');
+    else if (state === STATE.MHS)          AudioManager.stopBgm();
+    else if (state === STATE.DODGE)        AudioManager.playBgm('dodge');
+    else if (state === STATE.DODGE_RESULT) { /* BGM は showDodgeResult() で管理 */ }
     const map = {
-      [STATE.TITLE]:  'screen-title',
-      [STATE.MHS]:    'screen-mhs',
-      [STATE.GAME]:   'screen-game',
-      [STATE.RESULT]: 'screen-result',
+      [STATE.TITLE]:        'screen-title',
+      [STATE.MHS]:          'screen-mhs',
+      [STATE.GAME]:         'screen-game',
+      [STATE.RESULT]:       'screen-result',
+      [STATE.DODGE]:        'screen-dodge',
+      [STATE.DODGE_RESULT]: 'screen-dodge-result',
     };
     document.getElementById(map[state]).classList.add('active');
   }
@@ -1678,6 +1688,10 @@
     const rankSuffix = (myRank === 1) ? 'ST' : (myRank === 2) ? 'ND' : (myRank === 3) ? 'RD' : 'TH';
     document.getElementById('result-rank').textContent = `${myRank}${rankSuffix} PLACE`;
 
+    localStorage.setItem('mhsc_last_score', String(player.score));
+    if (myRank <= 4 && localStorage.getItem('mhsc_unlocked') !== '1') {
+      localStorage.setItem('mhsc_unlocked', '1');
+    }
     AudioManager.play('result');
     const bgmName = myRank <= 3 ? 'result_good' : 'result_bad';
     AudioManager.playBgm(bgmName);
@@ -1698,6 +1712,12 @@
   }
 
   // 結果ボタン
+  document.getElementById('btn-dodge').addEventListener('click', () => {
+    AudioManager.init();
+    AudioManager.play('start');
+    startDodgeGame();
+  });
+
   document.getElementById('btn-retry').addEventListener('click', () => {
     AudioManager.play('select');
     resetDialogue();
