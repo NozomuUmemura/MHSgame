@@ -27,6 +27,38 @@
     if (a) { try { a.currentTime = 0; a.play(); } catch (e) {} }
   }
 
+  // ===== ストレージ =====
+  const Storage = (() => {
+    const KEY_SCORE = 'mhsc_best_score';
+    const KEY_RANK  = 'mhsc_best_rank';
+    return {
+      load() {
+        return {
+          bestScore: parseInt(localStorage.getItem(KEY_SCORE) || '0', 10),
+          bestRank:  parseInt(localStorage.getItem(KEY_RANK)  || '9', 10),
+        };
+      },
+      save(score, rank) {
+        const cur = this.load();
+        if (score > cur.bestScore) localStorage.setItem(KEY_SCORE, String(score));
+        if (rank  < cur.bestRank)  localStorage.setItem(KEY_RANK,  String(rank));
+      },
+      isNewRecord(score, rank) {
+        const cur = this.load();
+        return score > cur.bestScore || rank < cur.bestRank;
+      },
+    };
+  })();
+
+  function updateBestScoreDisplay() {
+    const el = document.getElementById('best-score-display');
+    if (!el) return;
+    const { bestScore, bestRank } = Storage.load();
+    if (bestScore === 0) { el.textContent = '- - -'; return; }
+    const suf = bestRank === 1 ? 'ST' : bestRank === 2 ? 'ND' : bestRank === 3 ? 'RD' : 'TH';
+    el.textContent = `BEST  ${bestScore} pt  /  ${bestRank}${suf} PLACE`;
+  }
+
   // ===== 画面 =====
   const STATE = { TITLE:'title', MHS:'mhs', GAME:'game', RESULT:'result' };
   let currentState = STATE.TITLE;
@@ -149,6 +181,7 @@
   function switchScreen(state) {
     currentState = state;
     document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+    if (state === STATE.TITLE) updateBestScoreDisplay();
     const map = {
       [STATE.TITLE]:  'screen-title',
       [STATE.MHS]:    'screen-mhs',
@@ -1453,6 +1486,15 @@
     document.getElementById('result-rank').textContent = `${myRank}${rankSuffix} PLACE`;
 
     playSfx('result');
+    const isNew = Storage.isNewRecord(player.score, myRank);
+    Storage.save(player.score, myRank);
+    if (isNew) {
+      const newRec = document.createElement('p');
+      newRec.textContent = '★ NEW RECORD!';
+      newRec.style.cssText = 'color:#ffd700;font-size:clamp(11px,2vw,14px);letter-spacing:3px;margin-bottom:8px;';
+      const ol = document.getElementById('ranking-list');
+      ol.parentNode.insertBefore(newRec, ol);
+    }
     switchScreen(STATE.RESULT);
     // 会話開始
     const lines = DIALOGUE_LINES[myRank] || DIALOGUE_LINES[4];
