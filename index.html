@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>バスケがしたいです</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DotGothic16&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="game-wrapper">
+    <canvas id="game-canvas" width="800" height="500"></canvas>
+
+    <!-- ===== タイトル ===== -->
+    <div id="screen-title" class="screen active">
+      <div class="title-box">
+        <h1 class="pixel-title pixel-jp">バスケが</h1>
+        <h1 class="pixel-title pixel-jp">したいです</h1>
+        <h2 class="pixel-subtitle">- MHS CATAPULT -</h2>
+        <p class="blink">PRESS START</p>
+        <button class="ui-button" data-action="goto-mhs">START</button>
+        <p class="hint">SPACE / CLICK / TAP</p>
+      </div>
+    </div>
+
+    <!-- ===== M/H/S 強化選択 ===== -->
+    <div id="screen-mhs" class="screen">
+      <div class="mhs-box">
+        <h2 class="pixel-heading">CHOOSE FOCUS</h2>
+        <p class="pixel-text pixel-jp">どんなスタイルで戦う？</p>
+
+        <div class="mhs-options">
+          <button class="mhs-card" data-mhs="M">
+            <div class="mhs-letter mhs-m">M</div>
+            <div class="mhs-name">MECHANICS</div>
+            <div class="mhs-desc pixel-jp">
+              機構を強化<br>
+              <span class="mhs-tag">バンク特化</span><br>
+              反発UP / 球が重く風に強い<br>
+              多少ブレる
+            </div>
+          </button>
+          <button class="mhs-card" data-mhs="H">
+            <div class="mhs-letter mhs-h">H</div>
+            <div class="mhs-name">HARDWARE</div>
+            <div class="mhs-desc pixel-jp">
+              電子制御で安定<br>
+              <span class="mhs-tag">安定型</span><br>
+              ブレ最小 / 緑球が更安定<br>
+              風の値が精密表示
+            </div>
+          </button>
+          <button class="mhs-card" data-mhs="S">
+            <div class="mhs-letter mhs-s">S</div>
+            <div class="mhs-name">SOFTWARE</div>
+            <div class="mhs-desc pixel-jp">
+              軌道を予測補正<br>
+              <span class="mhs-tag">予測型</span><br>
+              長いガイド / 動く的を予測<br>
+              ガイドに風を反映
+            </div>
+          </button>
+        </div>
+
+        <button class="ui-button" id="btn-start-game" disabled>GO!</button>
+      </div>
+    </div>
+
+    <!-- ===== ゲーム ===== -->
+    <div id="screen-game" class="screen">
+      <div class="hud-top">
+        <div class="hud-cell">SHOT <span id="hud-shot">1</span>/10</div>
+        <div class="hud-cell">SCORE <span id="hud-score">0</span></div>
+        <div class="hud-cell">STREAK x<span id="hud-streak">1.0</span></div>
+        <div class="hud-cell">FOCUS <span id="hud-focus">-</span></div>
+      </div>
+
+      <div id="rank-info" class="rank-info hidden">
+        <div class="rank-line rank-current">RANK -/8</div>
+        <div class="rank-line rank-gap-3">- TO 3RD</div>
+        <div class="rank-line rank-gap-1">- TO 1ST</div>
+      </div>
+
+      <div class="hud-bottom">
+        <div class="hud-row">
+          <span>ANGLE <span id="hud-angle">45</span></span>
+          <span>POWER <span id="hud-power">50</span></span>
+          <span>BALL <span id="hud-ball">YELLOW</span></span>
+          <span>WIND <span id="hud-wind">-</span></span>
+        </div>
+        <div class="touch-controls">
+          <button class="ctrl-btn" id="btn-angle-down" type="button">A-</button>
+          <button class="ctrl-btn" id="btn-angle-up" type="button">A+</button>
+          <button class="ctrl-btn" id="btn-power-down" type="button">P-</button>
+          <button class="ctrl-btn" id="btn-power-up" type="button">P+</button>
+          <button class="ctrl-btn fire" id="btn-fire" type="button">FIRE</button>
+        </div>
+        <p class="hint mini">LEFT/RIGHT or A/D : ANGLE  -  UP/DOWN or W/S : POWER  -  SPACE : FIRE</p>
+      </div>
+
+      <div id="msg-window" class="msg-window hidden">
+        <p id="msg-text">READY</p>
+      </div>
+    </div>
+
+    <!-- ===== 結果 ===== -->
+    <div id="screen-result" class="screen">
+      <!-- 会話シーン (1行ずつ進行) -->
+      <div id="dialogue-scene" class="dialogue-scene">
+        <div class="dialogue-portrait-wrap">
+          <div class="dialogue-portrait">
+            <img id="ume-portrait" src="ume.png" alt="UME" />
+          </div>
+          <div class="dialogue-name-tag">UME</div>
+        </div>
+        <div class="dialogue-box">
+          <p id="dialogue-text" class="dialogue-text pixel-jp"></p>
+          <div id="dialogue-next" class="dialogue-next hidden"></div>
+        </div>
+        <p class="hint mini">CLICK / TAP / SPACE / ENTER</p>
+      </div>
+
+      <!-- 最終ランキング (会話後に表示) -->
+      <div id="result-summary" class="result-summary hidden">
+        <h2 class="pixel-heading">- RESULT -</h2>
+        <p class="result-headline">
+          <span class="pixel-jp">あなたは</span> TEAM 4 -
+          <span id="result-rank" class="result-rank">--</span>
+        </p>
+        <ol id="ranking-list" class="ranking"></ol>
+        <div class="result-buttons">
+          <button class="ui-button" id="btn-retry">RETRY</button>
+          <button class="ui-button" id="btn-back-title">TITLE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
