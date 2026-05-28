@@ -1737,6 +1737,15 @@
     startDodgeGame();
   });
 
+  document.getElementById('dodge-btn-retry').addEventListener('click', () => {
+    AudioManager.play('select');
+    startDodgeGame();
+  });
+  document.getElementById('dodge-btn-title').addEventListener('click', () => {
+    AudioManager.play('select');
+    switchScreen(STATE.TITLE);
+  });
+
   document.getElementById('btn-retry').addEventListener('click', () => {
     AudioManager.play('select');
     resetDialogue();
@@ -2071,6 +2080,33 @@
     });
 
     if (died) endDodgeGame();
+  }
+
+  function endDodgeGame() {
+    DODGE.survivalMs  = DODGE.elapsed;
+    DODGE.finalPhase  = DODGE.phase;
+    AudioManager.play('miss');
+    AudioManager.stopBgm();
+    setTimeout(showDodgeResult, 800);
+  }
+
+  function showDodgeResult() {
+    const ms    = DODGE.survivalMs;
+    const prev  = parseInt(localStorage.getItem('mhsc_dodge_best') || '0', 10);
+    const isNew = ms > prev;
+    if (isNew) localStorage.setItem('mhsc_dodge_best', String(ms));
+
+    document.getElementById('dodge-res-time').textContent  = (ms / 1000).toFixed(1);
+    document.getElementById('dodge-res-phase').textContent = String(DODGE.finalPhase);
+
+    const stars = Math.round(DODGE.difficulty * 5);
+    document.getElementById('dodge-res-diff').textContent  = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+
+    const recEl = document.getElementById('dodge-new-record');
+    recEl.style.display = isNew ? 'block' : 'none';
+
+    AudioManager.playBgm('result_good');
+    switchScreen(STATE.DODGE_RESULT);
   }
 
   // ===== 起動 =====
