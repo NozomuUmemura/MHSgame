@@ -1470,6 +1470,8 @@
     const sorted = getCurrentRanking();
     const ol = document.getElementById('ranking-list');
     ol.innerHTML = '';
+    const oldRec = document.getElementById('new-record-banner');
+    if (oldRec) oldRec.remove();
     let myRank = 0;
     sorted.forEach((t, idx) => {
       const li = document.createElement('li');
@@ -1490,6 +1492,7 @@
     Storage.save(player.score, myRank);
     if (isNew) {
       const newRec = document.createElement('p');
+      newRec.id = 'new-record-banner';
       newRec.textContent = '★ NEW RECORD!';
       newRec.style.cssText = 'color:#ffd700;font-size:clamp(11px,2vw,14px);letter-spacing:3px;margin-bottom:8px;';
       const ol = document.getElementById('ranking-list');
