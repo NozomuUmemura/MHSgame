@@ -2063,7 +2063,7 @@
     }
     if (DODGE.invincible > 0) DODGE.invincible--;
 
-    const margin = 30;
+    const margin = 100;
     DODGE.bullets = DODGE.bullets.filter(b => {
       if (b.dead) return false;
       return b.x > box.x - margin && b.x < box.x + box.w + margin &&
