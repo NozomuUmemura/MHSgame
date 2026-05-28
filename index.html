@@ -140,6 +140,34 @@
         </div>
       </div>
     </div>
+
+    <!-- ===== 自分との闘い ===== -->
+    <div id="screen-dodge" class="screen">
+      <div class="hud-bottom" id="dodge-hud">
+        <div class="touch-controls">
+          <button class="ctrl-btn" id="dodge-btn-up"    type="button">↑</button>
+          <button class="ctrl-btn" id="dodge-btn-left"  type="button">←</button>
+          <button class="ctrl-btn" id="dodge-btn-down"  type="button">↓</button>
+          <button class="ctrl-btn" id="dodge-btn-right" type="button">→</button>
+        </div>
+        <p class="hint mini">ARROW KEYS / WASD</p>
+      </div>
+    </div>
+
+    <!-- ===== 自分との闘い 結果 ===== -->
+    <div id="screen-dodge-result" class="screen">
+      <div class="result-summary">
+        <h2 class="pixel-heading">- BATTLE RESULT -</h2>
+        <p class="result-headline pixel-jp">生存時間: <span id="dodge-res-time" class="result-rank">0.0</span> 秒</p>
+        <p class="result-headline">PHASE: <span id="dodge-res-phase">1</span> / 3</p>
+        <p class="result-headline">難易度: <span id="dodge-res-diff">☆☆☆☆☆</span></p>
+        <p id="dodge-new-record" style="display:none;color:#ffd700;font-size:clamp(11px,2vw,14px);letter-spacing:3px;margin:8px 0;">★ NEW RECORD!</p>
+        <div class="result-buttons">
+          <button class="ui-button" id="dodge-btn-retry">RETRY</button>
+          <button class="ui-button" id="dodge-btn-title">TITLE</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="script.js"></script>
