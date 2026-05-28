@@ -1927,9 +1927,151 @@
     }
   }
 
-  // Placeholders — implemented in Task 5
-  function updateDodgeBullets() {}
-  function spawnRandomDodgePattern() {}
+  function spawnRandomDodgePattern() {
+    const phase = DODGE.phase;
+    const maxId = phase === 1 ? 4 : phase === 2 ? 6 : 8;
+    const id = Math.floor(Math.random() * maxId) + 1;
+    spawnDodgePattern(id);
+  }
+
+  function spawnDodgePattern(id) {
+    const box = DODGE.box;
+    const d   = DODGE.difficulty;
+    const spd = id <= 4 ? 1.5 + d * 1.5 : id <= 6 ? 2.0 + d * 2.0 : 2.5 + d * 2.5;
+    const bx  = box.x, by = box.y, bw = box.w, bh = box.h;
+    const cx  = bx + bw / 2, cy = by + bh / 2;
+
+    switch (id) {
+      case 1: { // ボール弾
+        const n = 1 + DODGE.phase;
+        for (let i = 0; i < n; i++) {
+          const x = bx + 20 + Math.random() * (bw - 40);
+          const vx = (Math.random() - 0.5) * spd * 0.6;
+          DODGE.bullets.push({ x, y: by - 8, vx, vy: spd * 0.5, r: 6, color: Math.random() < 0.5 ? '#ffeb3b' : '#7cfc00', type: 'circle', gravity: true });
+        }
+        break;
+      }
+      case 2: { // 風の矢
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        const count = 3 + DODGE.phase;
+        for (let i = 0; i < count; i++) {
+          const y = by + 15 + Math.random() * (bh - 30);
+          const sx = dir > 0 ? bx - 20 - i * 18 : bx + bw + 20 + i * 18;
+          DODGE.bullets.push({ x: sx, y, vx: dir * spd * 1.2, vy: 0, w: 14, h: 3, color: '#4fc3f7', type: 'rect' });
+        }
+        break;
+      }
+      case 3: { // ゴールリム
+        const gapCenter = by + bh * (0.3 + Math.random() * 0.4);
+        const s = spd * 0.6;
+        DODGE.bullets.push({ x: cx, y: by,      vx: 0, vy:  s, w: bw - 4, h: 5, color: '#ff6f00', type: 'hbar', stopY: gapCenter - 14, life: 60 });
+        DODGE.bullets.push({ x: cx, y: by + bh, vx: 0, vy: -s, w: bw - 4, h: 5, color: '#ff6f00', type: 'hbar', stopY: gapCenter + 14, life: 60 });
+        break;
+      }
+      case 4: { // 直線弾幕
+        [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx, dy]) => {
+          for (let i = 0; i < 3; i++) {
+            const off = (i - 1) * 12;
+            DODGE.bullets.push({
+              x: cx + (dy !== 0 ? off : -dx * bw),
+              y: cy + (dx !== 0 ? off : -dy * bh),
+              vx: dx * spd, vy: dy * spd, r: 4, color: '#fff', type: 'circle',
+            });
+          }
+        });
+        break;
+      }
+      case 5: { // 回転弾
+        const base = performance.now() * 0.002;
+        for (let i = 0; i < 6; i++) {
+          const a = base + (i / 6) * Math.PI * 2;
+          DODGE.bullets.push({ x: cx, y: cy, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, r: 4, color: '#fff', type: 'circle' });
+        }
+        break;
+      }
+      case 6: { // 追尾弾
+        const sides = [[cx, by],[cx, by+bh],[bx, cy],[bx+bw, cy]];
+        const [sx, sy] = sides[Math.floor(Math.random() * 4)];
+        const dx = DODGE.heart.x - sx, dy = DODGE.heart.y - sy;
+        const len = Math.hypot(dx, dy) || 1;
+        DODGE.bullets.push({ x: sx, y: sy, vx: dx/len*spd*0.7, vy: dy/len*spd*0.7, r: 5, color: '#ff9800', type: 'circle', homing: true, homingSpd: spd * 0.7 });
+        break;
+      }
+      case 7: { // 拡散弾
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          DODGE.bullets.push({ x: cx, y: cy, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd, r: 4, color: '#fff', type: 'circle' });
+        }
+        break;
+      }
+      case 8: { // 壁弾
+        const open = Math.floor(Math.random() * 4);
+        for (let s = 0; s < 4; s++) {
+          if (s === open) continue;
+          for (let i = 0; i < 5; i++) {
+            const t = (i + 0.5) / 5;
+            let bx2, by2, vx2, vy2;
+            if      (s === 0) { bx2 = bx + t*bw; by2 = by;      vx2 = 0;    vy2 = spd;  }
+            else if (s === 1) { bx2 = bx+bw;     by2 = by+t*bh; vx2 = -spd; vy2 = 0;    }
+            else if (s === 2) { bx2 = bx + t*bw; by2 = by+bh;   vx2 = 0;    vy2 = -spd; }
+            else              { bx2 = bx;         by2 = by+t*bh; vx2 = spd;  vy2 = 0;    }
+            DODGE.bullets.push({ x: bx2, y: by2, vx: vx2, vy: vy2, r: 3, color: '#fff', type: 'circle' });
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  function updateDodgeBullets() {
+    const box = DODGE.box;
+    let died = false;
+    for (const b of DODGE.bullets) {
+      if (b.gravity) b.vy += 0.12;
+
+      if (b.homing) {
+        const dx = DODGE.heart.x - b.x, dy = DODGE.heart.y - b.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const turn = 0.04;
+        b.vx += (dx / len * b.homingSpd - b.vx) * turn;
+        b.vy += (dy / len * b.homingSpd - b.vy) * turn;
+      }
+
+      b.x += b.vx;
+      b.y += b.vy;
+
+      if (b.type === 'hbar' && b.stopY !== undefined) {
+        if ((b.vy > 0 && b.y >= b.stopY) || (b.vy < 0 && b.y <= b.stopY)) {
+          b.vx = 0; b.vy = 0;
+          b.life = (b.life || 60) - 1;
+          if (b.life <= 0) { b.dead = true; continue; }
+        }
+      }
+
+      if (DODGE.invincible <= 0) {
+        const hit = b.type === 'circle'
+          ? Math.hypot(b.x - DODGE.heart.x, b.y - DODGE.heart.y) < b.r + 2
+          : Math.abs(b.x - DODGE.heart.x) < b.w / 2 + 2 && Math.abs(b.y - DODGE.heart.y) < b.h / 2 + 2;
+        if (hit) {
+          DODGE.hp -= 1;
+          DODGE.invincible = 48;
+          AudioManager.play('hit');
+          flashAlpha = 0.45; flashColor = '220,20,60';
+          if (DODGE.hp <= 0) died = true;
+        }
+      }
+    }
+    if (DODGE.invincible > 0) DODGE.invincible--;
+
+    const margin = 30;
+    DODGE.bullets = DODGE.bullets.filter(b => {
+      if (b.dead) return false;
+      return b.x > box.x - margin && b.x < box.x + box.w + margin &&
+             b.y > box.y - margin && b.y < box.y + box.h + margin;
+    });
+
+    if (died) endDodgeGame();
+  }
 
   // ===== 起動 =====
   switchScreen(STATE.TITLE);
