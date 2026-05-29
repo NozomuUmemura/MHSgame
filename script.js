@@ -1971,14 +1971,90 @@
     }
   }
 
-  // Task 1 仮アタック (落下円)。Task 2 で部品アタックに置換。
+  // ラウンドごとに部品をローテーション (gear→bolt→screw→nut→board→…)
   function spawnDodgeAttack() {
+    const part = PART_ORDER[(DODGE.round - 1 + PART_ORDER.length) % PART_ORDER.length];
+    spawnPartAttack(part);
+  }
+
+  function spawnPartAttack(part) {
     const b = DBOX, d = DODGE.difficulty;
-    const spd = 1.8 + d * 1.5;
-    const n = 2 + Math.floor(d * 2) + Math.floor(DODGE.round / 2);
-    for (let i = 0; i < n; i++) {
-      const x = b.x + 15 + Math.random() * (b.w - 30);
-      DODGE.bullets.push({ x, y: b.y - 8, vx: 0, vy: spd, r: 5, color: '#fff' });
+    const spd = 1.6 + d * 1.4 + DODGE.round * 0.05;
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+
+    if (part === 'gear') {
+      // 転がる歯車: 左右に横切る + 回転
+      const n = 1 + Math.floor(d * 2) + Math.floor(DODGE.round / 3);
+      for (let i = 0; i < n; i++) {
+        const fromLeft = Math.random() < 0.5;
+        const y = b.y + 25 + Math.random() * (b.h - 50);
+        DODGE.bullets.push({
+          img: 'gear', size: 34, r: 14,
+          x: fromLeft ? b.x - 24 : b.x + b.w + 24, y,
+          vx: (fromLeft ? 1 : -1) * spd, vy: 0,
+          spin: (fromLeft ? 1 : -1) * 0.15,
+        });
+      }
+    } else if (part === 'bolt') {
+      // 落下ボルト: 上から高速落下
+      const n = 3 + Math.floor(d * 3) + Math.floor(DODGE.round / 2);
+      for (let i = 0; i < n; i++) {
+        const x = b.x + 15 + Math.random() * (b.w - 30);
+        DODGE.bullets.push({
+          img: 'bolt', size: 28, r: 9,
+          x, y: b.y - 14, vx: 0, vy: spd * 1.4, gravity: true,
+        });
+      }
+    } else if (part === 'screw') {
+      // ねじ込み: 横からサイン波 + 回転
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      const n = 2 + Math.floor(d * 2) + Math.floor(DODGE.round / 3);
+      for (let i = 0; i < n; i++) {
+        const y = b.y + 30 + Math.random() * (b.h - 60);
+        DODGE.bullets.push({
+          img: 'screw', size: 28, r: 9,
+          x: dir > 0 ? b.x - 24 - i * 30 : b.x + b.w + 24 + i * 30, y,
+          baseY: y, vx: dir * spd, vy: 0,
+          spin: dir * 0.25, wave: true, waveAmp: 18, waveFreq: 0.12,
+        });
+      }
+    } else if (part === 'nut') {
+      // 跳ねるナット: 壁で反射
+      const n = 1 + Math.floor(d * 2) + Math.floor(DODGE.round / 4);
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        DODGE.bullets.push({
+          img: 'nut', size: 26, r: 10,
+          x: cx, y: cy,
+          vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+          bounce: true, life: 420, spin: 0.1,
+        });
+      }
+    } else { // board
+      // 回路プレス: 片側から基板の壁が迫り、1か所だけ隙間
+      const vertical = Math.random() < 0.5;
+      const gap = 0.3 + Math.random() * 0.4;
+      const fromStart = Math.random() < 0.5;
+      const slots = 6;
+      for (let i = 0; i < slots; i++) {
+        const t = (i + 0.5) / slots;
+        if (Math.abs(t - gap) < 0.16) continue; // 隙間
+        if (vertical) {
+          const x = b.x + t * b.w;
+          DODGE.bullets.push({
+            img: 'board', size: 30, r: 13,
+            x, y: fromStart ? b.y - 16 : b.y + b.h + 16,
+            vx: 0, vy: (fromStart ? 1 : -1) * spd * 0.7,
+          });
+        } else {
+          const y = b.y + t * b.h;
+          DODGE.bullets.push({
+            img: 'board', size: 30, r: 13,
+            x: fromStart ? b.x - 16 : b.x + b.w + 16, y,
+            vx: (fromStart ? 1 : -1) * spd * 0.7, vy: 0,
+          });
+        }
+      }
     }
   }
 
