@@ -144,13 +144,16 @@
     <!-- ===== 自分との闘い ===== -->
     <div id="screen-dodge" class="screen">
       <div class="hud-bottom" id="dodge-hud">
-        <div class="touch-controls">
+        <div class="touch-controls" id="dodge-dir-controls">
           <button class="ctrl-btn" id="dodge-btn-up"    type="button">↑</button>
           <button class="ctrl-btn" id="dodge-btn-left"  type="button">←</button>
           <button class="ctrl-btn" id="dodge-btn-down"  type="button">↓</button>
           <button class="ctrl-btn" id="dodge-btn-right" type="button">→</button>
         </div>
-        <p class="hint mini">ARROW KEYS / WASD</p>
+        <div class="touch-controls">
+          <button class="ctrl-btn fire" id="dodge-btn-fight" type="button" style="display:none;">FIGHT</button>
+        </div>
+        <p class="hint mini">移動: 矢印/WASD　攻撃: SPACE</p>
       </div>
     </div>
 
@@ -158,10 +161,10 @@
     <div id="screen-dodge-result" class="screen">
       <div class="result-summary">
         <h2 class="pixel-heading">- BATTLE RESULT -</h2>
-        <p class="result-headline pixel-jp">生存時間: <span id="dodge-res-time" class="result-rank">0.0</span> 秒</p>
-        <p class="result-headline">PHASE: <span id="dodge-res-phase">1</span> / 3</p>
-        <p class="result-headline">難易度: <span id="dodge-res-diff">☆☆☆☆☆</span></p>
-        <p id="dodge-new-record" style="display:none;color:#ffd700;font-size:clamp(11px,2vw,14px);letter-spacing:3px;margin:8px 0;">★ NEW RECORD!</p>
+        <p id="dodge-res-outcome" class="result-rank" style="font-size:clamp(16px,4vw,26px);margin:8px 0;">YOU WIN</p>
+        <p class="result-headline">ROUND: <span id="dodge-res-rounds">1</span></p>
+        <p class="result-headline pixel-jp">難易度: <span id="dodge-res-diff">☆☆☆☆☆</span></p>
+        <p id="dodge-new-record" style="display:none;color:#ffd700;font-size:clamp(11px,2vw,14px);letter-spacing:3px;margin:8px 0;">★ FASTEST WIN!</p>
         <div class="result-buttons">
           <button class="ui-button" id="dodge-btn-retry">RETRY</button>
           <button class="ui-button" id="dodge-btn-title">TITLE</button>
