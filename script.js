@@ -196,8 +196,12 @@
 
   function updateDodgeButtonVisibility() {
     const el = document.getElementById('btn-dodge');
-    if (!el) return;
-    el.style.display = localStorage.getItem('mhsc_unlocked') === '1' ? 'inline-block' : 'none';
+    if (el) el.style.display = localStorage.getItem('mhsc_unlocked') === '1' ? 'inline-block' : 'none';
+    const elRef = document.getElementById('btn-referee');
+    if (elRef) {
+      const cleared = parseInt(localStorage.getItem('mhsc_dodge_best') || '0', 10) > 0;
+      elRef.style.display = cleared ? 'inline-block' : 'none';
+    }
   }
 
   // ===== 画面 =====
@@ -1804,12 +1808,17 @@
   document.getElementById('btn-dodge').addEventListener('click', () => {
     AudioManager.init();
     AudioManager.play('start');
-    startDodgeGame();
+    startDodgeGame('self');
+  });
+  document.getElementById('btn-referee').addEventListener('click', () => {
+    AudioManager.init();
+    AudioManager.play('start');
+    startDodgeGame('referee');
   });
 
   document.getElementById('dodge-btn-retry').addEventListener('click', () => {
     AudioManager.play('select');
-    startDodgeGame();
+    startDodgeGame(DODGE.boss);
   });
   document.getElementById('dodge-btn-title').addEventListener('click', () => {
     AudioManager.play('select');
@@ -1842,9 +1851,9 @@
   // 部品画像プリロード
   const PART_IMG = {};
   const PART_ORDER = ['gear', 'bolt', 'screw', 'nut', 'board'];
-  PART_ORDER.forEach(name => {
+  PART_ORDER.concat(['whistle']).forEach(name => {
     const img = new Image();
-    img.src = name.charAt(0).toUpperCase() + name.slice(1) + '.png'; // Gear.png 等
+    img.src = name.charAt(0).toUpperCase() + name.slice(1) + '.png'; // Gear.png / Whistle.png 等
     PART_IMG[name] = img;
   });
 
@@ -1877,6 +1886,7 @@
     itemsLeft: 3,
     realFormUsed: false,
     realFormActive: false,
+    boss: 'self', // 'self' (鏡の自分) | 'referee' (Whistleボス)
     msg: '', msgUntil: 0,
     active: false,
   };
@@ -1886,8 +1896,9 @@
     DODGE.msgUntil = performance.now() + ms;
   }
 
-  function startDodgeGame() {
+  function startDodgeGame(boss) {
     const lastScore = parseInt(localStorage.getItem('mhsc_last_score') || '0', 10);
+    DODGE.boss = (boss === 'referee') ? 'referee' : 'self';
     DODGE.difficulty = Math.min(1.0, lastScore / 200);
     DODGE.hp = DODGE_PLAYER_HP;
     DODGE.maxHp = DODGE_PLAYER_HP;
@@ -1895,7 +1906,9 @@
     DODGE.round = 0;
     DODGE.outcome = null;
     DODGE.lv = Math.max(1, Math.floor(lastScore / 50) + 1);
-    DODGE.oppHpMax = Math.round(100 + 60 * DODGE.difficulty);
+    DODGE.oppHpMax = DODGE.boss === 'referee'
+      ? Math.round(200 + 80 * DODGE.difficulty)
+      : Math.round(100 + 60 * DODGE.difficulty);
     DODGE.oppHp = DODGE.oppHpMax;
     DODGE.oppShake = 0; DODGE.oppFlash = 0;
     DODGE.bullets = [];
@@ -2149,6 +2162,37 @@
       const altIdx = (DODGE.round + 1) % PART_ORDER.length;
       spawnPartAttack(PART_ORDER[altIdx]);
     }
+    if (DODGE.boss === 'referee') {
+      spawnWhistleAttack();
+    }
+  }
+
+  // 審判戦: 笛が降り注ぐ
+  function spawnWhistleAttack() {
+    const b = DBOX, d = DODGE.difficulty;
+    const spd = 1.3 + d * 1.0 + DODGE.round * 0.04;
+    const n = 2 + Math.floor(d * 2) + Math.floor(DODGE.round / 4);
+    for (let i = 0; i < n; i++) {
+      const fromTop = Math.random() < 0.7;
+      if (fromTop) {
+        const x = b.x + 15 + Math.random() * (b.w - 30);
+        DODGE.bullets.push({
+          img: 'whistle', size: 34, r: 12,
+          x, y: b.y - 20, vx: (Math.random() - 0.5) * 0.8, vy: spd * 1.3,
+          spin: (Math.random() < 0.5 ? -1 : 1) * 0.12,
+        });
+      } else {
+        // 横入射の笛
+        const fromLeft = Math.random() < 0.5;
+        const y = b.y + 25 + Math.random() * (b.h - 50);
+        DODGE.bullets.push({
+          img: 'whistle', size: 32, r: 11,
+          x: fromLeft ? b.x - 24 : b.x + b.w + 24, y,
+          vx: (fromLeft ? 1 : -1) * spd, vy: 0,
+          spin: (fromLeft ? 1 : -1) * 0.15,
+        });
+      }
+    }
   }
 
   function spawnPartAttack(part) {
@@ -2356,12 +2400,26 @@
     drawDodgeGrid();
     drawStars();
 
-    // 相手(鏡の自分)
+    // 相手(鏡の自分 / 審判)
     const oppX = W / 2 + (DODGE.oppShake > 0 ? (Math.random() - 0.5) * 8 : 0);
-    const oppColor = DODGE.realFormUsed ? '#ff6464' : (DODGE.oppFlash > 0 ? '#fff' : '#f0f0f0');
-    drawDodgeHeart(oppX, 52, oppColor, false);
+    if (DODGE.boss === 'referee') {
+      const wh = PART_IMG.whistle;
+      const sz = 56;
+      if (wh && wh.complete && wh.naturalWidth) {
+        ctx.save();
+        if (DODGE.oppFlash > 0) ctx.globalAlpha = 0.6;
+        ctx.drawImage(wh, oppX - sz / 2, 28, sz, sz);
+        ctx.restore();
+      } else {
+        pixelText('REFEREE', oppX, 56, 10, '#fff', 'center');
+      }
+    } else {
+      const oppColor = DODGE.realFormUsed ? '#ff6464' : (DODGE.oppFlash > 0 ? '#fff' : '#f0f0f0');
+      drawDodgeHeart(oppX, 52, oppColor, false);
+    }
     const barW = 180, barX = W / 2 - barW / 2, barY = 74;
-    pixelText(DODGE.realFormActive ? 'ENEMY!' : 'ENEMY', barX, barY - 12, 7,
+    pixelText(DODGE.realFormActive ? 'ENEMY!' : (DODGE.boss === 'referee' ? 'REFEREE' : 'ENEMY'),
+              barX, barY - 12, 7,
               DODGE.realFormActive ? '#ff6464' : '#f0f0f0', 'left');
     ctx.fillStyle = '#333'; ctx.fillRect(barX, barY, barW, 8);
     ctx.fillStyle = DODGE.realFormActive ? '#ff5252' : '#f0f0f0';
@@ -2418,10 +2476,15 @@
     if (outcome === 'win') {
       AudioManager.play('super');
       flashAlpha = 0.5; flashColor = '255,255,255';
-      setDodgeMsg('…今日のお前には、敵わないな', 1600);
+      setDodgeMsg(DODGE.boss === 'referee'
+        ? '審判の笛が… おちた。'
+        : '…今日のお前には、敵わないな', 1600);
+      if (DODGE.boss === 'referee') localStorage.setItem('mhsc_referee_clear', '1');
     } else {
       AudioManager.play('miss');
-      setDodgeMsg('まだだ。ここから越えてみせろ', 1600);
+      setDodgeMsg(DODGE.boss === 'referee'
+        ? '笛の連打に、コートが揺れる…'
+        : 'まだだ。ここから越えてみせろ', 1600);
     }
     setTimeout(showDodgeResult, 1200);
   }
@@ -2429,7 +2492,8 @@
   function showDodgeResult() {
     const win = DODGE.outcome === 'win';
     const outEl = document.getElementById('dodge-res-outcome');
-    outEl.textContent = win ? 'YOU WIN' : 'YOU LOSE';
+    const prefix = DODGE.boss === 'referee' ? '[審判戦] ' : '';
+    outEl.textContent = prefix + (win ? 'YOU WIN' : 'YOU LOSE');
     outEl.style.color = win ? '#7cfc00' : '#ff5252';
     document.getElementById('dodge-res-rounds').textContent = String(Math.max(1, DODGE.round));
 
@@ -2437,10 +2501,16 @@
     document.getElementById('dodge-res-diff').textContent = '★'.repeat(stars) + '☆'.repeat(5 - stars);
 
     let isNew = false;
-    if (win) {
+    if (win && DODGE.boss === 'self') {
       const prev = parseInt(localStorage.getItem('mhsc_dodge_best') || '0', 10);
       if (prev === 0 || DODGE.round < prev) {
         localStorage.setItem('mhsc_dodge_best', String(DODGE.round));
+        isNew = true;
+      }
+    } else if (win && DODGE.boss === 'referee') {
+      const prev = parseInt(localStorage.getItem('mhsc_referee_best') || '0', 10);
+      if (prev === 0 || DODGE.round < prev) {
+        localStorage.setItem('mhsc_referee_best', String(DODGE.round));
         isNew = true;
       }
     }
