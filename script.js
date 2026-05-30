@@ -411,9 +411,17 @@
   }
 
   // ===== タイトル → MHS =====
-  document.querySelector('[data-action="goto-mhs"]').addEventListener('click', () => {
+  let storyMode = false;
+  document.getElementById('btn-story').addEventListener('click', () => {
     AudioManager.init();
     AudioManager.play('select');
+    storyMode = true;
+    switchScreen(STATE.MHS);
+  });
+  document.getElementById('btn-free').addEventListener('click', () => {
+    AudioManager.init();
+    AudioManager.play('select');
+    storyMode = false;
     switchScreen(STATE.MHS);
   });
 
@@ -1742,6 +1750,11 @@
     dialogue.active = false;
     if (dialogue.typingTimer) clearInterval(dialogue.typingTimer);
     dialogueScene.classList.add('hidden');
+    if (storyMode) {
+      // STORYモード: そのまま「自分との闘い」へ
+      setTimeout(() => { if (storyMode) startDodgeGame('self'); }, 500);
+      return;
+    }
     resultSummary.classList.remove('hidden');
   }
 
@@ -1822,6 +1835,7 @@
   });
   document.getElementById('dodge-btn-title').addEventListener('click', () => {
     AudioManager.play('select');
+    storyMode = false;
     switchScreen(STATE.TITLE);
   });
 
@@ -1842,6 +1856,7 @@
     trail = [];
     particles = [];
     windParticles = [];
+    storyMode = false;
     switchScreen(STATE.TITLE);
   });
 
@@ -2492,9 +2507,11 @@
   function showDodgeResult() {
     const win = DODGE.outcome === 'win';
     const outEl = document.getElementById('dodge-res-outcome');
+    const storyPrefix = (storyMode && win) ? '★ STORY CLEAR ★ ' : '';
     const prefix = DODGE.boss === 'referee' ? '[審判戦] ' : '';
-    outEl.textContent = prefix + (win ? 'YOU WIN' : 'YOU LOSE');
+    outEl.textContent = storyPrefix + prefix + (win ? 'YOU WIN' : 'YOU LOSE');
     outEl.style.color = win ? '#7cfc00' : '#ff5252';
+    if (storyMode && win) localStorage.setItem('mhsc_story_clear', '1');
     document.getElementById('dodge-res-rounds').textContent = String(Math.max(1, DODGE.round));
 
     const stars = Math.round(DODGE.difficulty * 5);
