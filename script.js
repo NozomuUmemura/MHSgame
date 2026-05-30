@@ -661,7 +661,15 @@
     if (currentState === STATE.DODGE) {
       if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault();
-        if (!e.repeat) dodgeFightPress();
+        if (!e.repeat) dodgeConfirmPress();
+      } else if (DODGE.battlePhase === 'player' && DODGE.menu.mode === 'menu' &&
+                 (e.code === 'ArrowLeft' || e.code === 'KeyA')) {
+        e.preventDefault();
+        if (!e.repeat) dodgeMoveMenu(-1);
+      } else if (DODGE.battlePhase === 'player' && DODGE.menu.mode === 'menu' &&
+                 (e.code === 'ArrowRight' || e.code === 'KeyD')) {
+        e.preventDefault();
+        if (!e.repeat) dodgeMoveMenu(+1);
       } else {
         keysHeld[e.code] = true;
       }
@@ -1844,6 +1852,14 @@
   const DODGE_PLAYER_HP = 8;
   const ENEMY_TURN_MS = 6500;
 
+  const ACTIONS = ['fight', 'act', 'item', 'mercy'];
+  const ACT_LINES = [
+    'むこうも こちらを にらんでいる。',
+    'カタパルトに ホコリを みとめた。',
+    'すこし こきゅうを ととのえる。',
+    '自分の影に 重なるような 視線。',
+  ];
+
   const DODGE = {
     battlePhase: 'intro',     // intro | player | enemy | win | lose
     phaseTime: 0,
@@ -1852,10 +1868,13 @@
     outcome: null,
     heart: { x: 400, y: 250 },
     hp: 8, maxHp: 8, invincible: 0,
+    lv: 1,
     oppHpMax: 100, oppHp: 100, oppShake: 0, oppFlash: 0,
     bullets: [],
     nextBulletTime: 0,
     fight: { active: false, markerX: 0, speed: 0, locked: false },
+    menu: { mode: 'menu', index: 0, msgUntil: 0, msgNextPhase: null },
+    itemsLeft: 3,
     msg: '', msgUntil: 0,
     active: false,
   };
@@ -1873,35 +1892,45 @@
     DODGE.invincible = 0;
     DODGE.round = 0;
     DODGE.outcome = null;
+    DODGE.lv = Math.max(1, Math.floor(lastScore / 50) + 1);
     DODGE.oppHpMax = Math.round(100 + 60 * DODGE.difficulty);
     DODGE.oppHp = DODGE.oppHpMax;
     DODGE.oppShake = 0; DODGE.oppFlash = 0;
     DODGE.bullets = [];
+    DODGE.itemsLeft = 3;
     DODGE.heart = { x: DBOX.x + DBOX.w / 2, y: DBOX.y + DBOX.h / 2 };
     DODGE.fight.active = false;
+    DODGE.menu.mode = 'menu'; DODGE.menu.index = 0;
     DODGE.msg = '';
     DODGE.active = true;
     enterBattlePhase('intro');
     switchScreen(STATE.DODGE);
   }
 
+  function syncDodgeUI() {
+    const acts    = document.getElementById('dodge-actions');
+    const dirs    = document.getElementById('dodge-dir-controls');
+    const showAct = (DODGE.battlePhase === 'player' && DODGE.menu.mode === 'menu');
+    const showDir = (DODGE.battlePhase === 'enemy');
+    if (acts) acts.style.display = showAct ? '' : 'none';
+    if (dirs) dirs.style.visibility = showDir ? 'visible' : 'hidden';
+    document.querySelectorAll('#dodge-actions .act-btn').forEach((b, i) => {
+      b.classList.toggle('selected', i === DODGE.menu.index);
+      b.disabled = !showAct;
+    });
+  }
+
   function enterBattlePhase(p) {
     DODGE.battlePhase = p;
     DODGE.phaseTime = performance.now();
-    const fightBtn = document.getElementById('dodge-btn-fight');
-    const dirCtrls = document.getElementById('dodge-dir-controls');
-    const showFight = (p === 'player');
-    if (fightBtn) fightBtn.style.display = showFight ? '' : 'none';
-    if (dirCtrls) dirCtrls.style.visibility = (p === 'enemy') ? 'visible' : 'hidden';
 
     if (p === 'intro') {
       setDodgeMsg('もう一人の自分が現れた…', 1500);
     } else if (p === 'player') {
-      const f = DODGE.fight;
-      f.active = true;
-      f.locked = false;
-      f.markerX = DBOX.x + 10;
-      f.speed = (DBOX.w - 20) / 78 * (1 + 0.08 * Math.max(0, DODGE.round - 1));
+      DODGE.menu.mode = 'menu';
+      DODGE.menu.index = 0;
+      DODGE.fight.active = false;
+      DODGE.fight.locked = false;
     } else if (p === 'enemy') {
       DODGE.round += 1;
       DODGE.bullets = [];
@@ -1909,6 +1938,56 @@
       DODGE.heart = { x: DBOX.x + DBOX.w / 2, y: DBOX.y + DBOX.h / 2 };
       AudioManager.play('start');
     }
+    syncDodgeUI();
+  }
+
+  function startFightBar() {
+    DODGE.menu.mode = 'fight';
+    const f = DODGE.fight;
+    f.active = true;
+    f.locked = false;
+    f.markerX = DBOX.x + 10;
+    f.speed = (DBOX.w - 20) / 78 * (1 + 0.08 * Math.max(0, DODGE.round - 1));
+    syncDodgeUI();
+  }
+
+  function startActMsg(text, nextPhase) {
+    DODGE.menu.mode = 'msg';
+    setDodgeMsg(text, 1500);
+    DODGE.menu.msgUntil = performance.now() + 1500;
+    DODGE.menu.msgNextPhase = nextPhase || 'enemy';
+    syncDodgeUI();
+  }
+
+  function dodgeChooseAction() {
+    if (DODGE.battlePhase !== 'player' || DODGE.menu.mode !== 'menu') return;
+    const act = ACTIONS[DODGE.menu.index];
+    AudioManager.play('select');
+    if (act === 'fight') {
+      startFightBar();
+    } else if (act === 'act') {
+      const line = ACT_LINES[(DODGE.round - 1) % ACT_LINES.length];
+      startActMsg(line, 'enemy');
+    } else if (act === 'item') {
+      if (DODGE.itemsLeft > 0) {
+        const heal = 3;
+        DODGE.hp = Math.min(DODGE.maxHp, DODGE.hp + heal);
+        DODGE.itemsLeft -= 1;
+        AudioManager.play('green');
+        startActMsg('HPが ' + heal + ' かいふくした!', 'enemy');
+      } else {
+        startActMsg('アイテムが ない…', 'enemy');
+      }
+    } else if (act === 'mercy') {
+      startActMsg('まだ ふみこんでこない…', 'enemy');
+    }
+  }
+
+  function dodgeMoveMenu(delta) {
+    if (DODGE.battlePhase !== 'player' || DODGE.menu.mode !== 'menu') return;
+    DODGE.menu.index = (DODGE.menu.index + delta + ACTIONS.length) % ACTIONS.length;
+    AudioManager.play('select');
+    syncDodgeUI();
   }
 
   // 方向ボタン (タッチ) → keysHeld
@@ -1930,25 +2009,31 @@
   bindDodgeKey('dodge-btn-left',  'ArrowLeft');
   bindDodgeKey('dodge-btn-right', 'ArrowRight');
 
-  // FIGHT ボタン (エッジ押下)
+  // SPACE/ENTER 押下: メニューなら決定、FIGHTバーならロック
   let dodgeFightLatch = false;
-  function dodgeFightPress() {
-    if (DODGE.battlePhase !== 'player' || !DODGE.fight.active || DODGE.fight.locked) return;
-    resolveFightHit();
+  function dodgeConfirmPress() {
+    if (DODGE.battlePhase !== 'player') return;
+    if (DODGE.menu.mode === 'menu') {
+      dodgeChooseAction();
+    } else if (DODGE.menu.mode === 'fight' && DODGE.fight.active && !DODGE.fight.locked) {
+      resolveFightHit();
+    }
   }
-  (function bindDodgeFight() {
-    const el = document.getElementById('dodge-btn-fight');
-    if (!el) return;
-    const press = ev => {
-      if (ev) ev.preventDefault();
-      if (dodgeFightLatch) return;
-      dodgeFightLatch = true;
-      dodgeFightPress();
-      setTimeout(() => { dodgeFightLatch = false; }, 150);
-    };
-    el.addEventListener('touchstart', press, { passive: false });
-    el.addEventListener('mousedown', press);
-    el.addEventListener('click', ev => ev.preventDefault());
+  // アクションボタン (タップ/クリック) で個別選択
+  (function bindDodgeActions() {
+    document.querySelectorAll('#dodge-actions .act-btn').forEach((btn, i) => {
+      const press = ev => {
+        if (ev) ev.preventDefault();
+        if (dodgeFightLatch) return;
+        dodgeFightLatch = true;
+        DODGE.menu.index = i;
+        dodgeChooseAction();
+        setTimeout(() => { dodgeFightLatch = false; }, 150);
+      };
+      btn.addEventListener('touchstart', press, { passive: false });
+      btn.addEventListener('mousedown', press);
+      btn.addEventListener('click', ev => ev.preventDefault());
+    });
   })();
 
   function resolveFightHit() {
@@ -1990,7 +2075,10 @@
     if (DODGE.battlePhase === 'intro') {
       if (now - DODGE.phaseTime >= 1500) enterBattlePhase('player');
     } else if (DODGE.battlePhase === 'player') {
-      updateFightBar();
+      if (DODGE.menu.mode === 'fight') updateFightBar();
+      else if (DODGE.menu.mode === 'msg' && now >= DODGE.menu.msgUntil) {
+        enterBattlePhase(DODGE.menu.msgNextPhase || 'enemy');
+      }
     } else if (DODGE.battlePhase === 'enemy') {
       updateDodgeEnemy(now);
     }
@@ -2195,12 +2283,51 @@
     }
   }
 
+  // 背景の薄い緑グリッド (敵領域の上半分)
+  function drawDodgeGrid() {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(60, 140, 60, 0.45)';
+    ctx.lineWidth = 1;
+    const top = 12, bottom = 150, step = 32;
+    for (let x = 0; x <= W; x += step) {
+      ctx.beginPath(); ctx.moveTo(x + 0.5, top); ctx.lineTo(x + 0.5, bottom); ctx.stroke();
+    }
+    for (let y = top; y <= bottom; y += step) {
+      ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Undertale風 LV/HP HUD
+  function drawDodgeHud(left, y) {
+    // YOU LV
+    pixelText('YOU', left, y, 8, '#fff', 'left');
+    pixelText('LV ' + DODGE.lv, left + 56, y, 8, '#fff', 'left');
+    // HP ラベル
+    const hpLabelX = left + 120;
+    pixelText('HP', hpLabelX, y, 8, '#fff', 'left');
+    // HPバー
+    const barX = hpLabelX + 28, barY = y - 1, barW = 100, barH = 10;
+    ctx.fillStyle = '#7a0000'; ctx.fillRect(barX, barY, barW, barH);
+    const fillW = Math.max(0, Math.round(barW * DODGE.hp / DODGE.maxHp));
+    ctx.fillStyle = '#ffeb3b'; ctx.fillRect(barX, barY, fillW, barH);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+    ctx.strokeRect(barX + 0.5, barY + 0.5, barW, barH);
+    // 数値
+    pixelText(DODGE.hp + ' / ' + DODGE.maxHp, barX + barW + 8, y, 8, '#fff', 'left');
+    // ROUND と アイテム残数
+    const right = DBOX.x + DBOX.w;
+    pixelText('ROUND ' + Math.max(1, DODGE.round), right, y, 7, '#7cfc00', 'right');
+    pixelText('ITEM x' + DODGE.itemsLeft, right, y + 12, 7, '#ff8c00', 'right');
+  }
+
   function renderDodge() {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
     const sh = getShakeOffset();
     ctx.save();
     ctx.translate(sh.x, sh.y);
+    drawDodgeGrid();
     drawStars();
 
     // 相手(鏡の自分)
@@ -2224,17 +2351,12 @@
       drawDodgeHeart(DODGE.heart.x, DODGE.heart.y, '#e61c3b', false);
     }
 
-    // 自分HP
-    const hpY = b.y + b.h + 18;
-    pixelText('YOU', b.x, hpY - 12, 7, '#e61c3b', 'left');
-    for (let i = 0; i < DODGE.maxHp; i++) {
-      drawDodgeHeart(b.x + 8 + i * 16, hpY, i < DODGE.hp ? '#e61c3b' : '#4a0000', false);
-    }
-    pixelText('ROUND ' + Math.max(1, DODGE.round), b.x + b.w, hpY - 12, 7, '#7cfc00', 'right');
+    // 自分のLV / HP (Undertale風)
+    drawDodgeHud(b.x, b.y + b.h + 12);
 
     // FIGHT バー
     if (DODGE.battlePhase === 'player' && DODGE.fight.active) {
-      const gy = hpY + 22, gx = b.x + 10, gw = b.w - 20;
+      const gy = b.y + b.h + 38, gx = b.x + 10, gw = b.w - 20;
       ctx.fillStyle = '#222'; ctx.fillRect(gx, gy, gw, 12);
       const center = b.x + b.w / 2, sw = gw * 0.08;
       ctx.fillStyle = '#ffeb3b'; ctx.fillRect(center - sw, gy, sw * 2, 12);
@@ -2262,6 +2384,7 @@
     DODGE.outcome = outcome;
     DODGE.battlePhase = outcome;
     DODGE.bullets = [];
+    syncDodgeUI();
     AudioManager.stopBgm();
     if (outcome === 'win') {
       AudioManager.play('super');
