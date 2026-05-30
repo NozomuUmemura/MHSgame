@@ -21,6 +21,7 @@
     let ctx = null;
     let bgmPlaying = null;
     let bgmTimeout = null;
+    let fileBgmEl = null;
 
     function init() {
       if (ctx) {
@@ -139,9 +140,24 @@
         bgmPlaying = name;
         scheduleBgm(name);
       },
+      playFileBgm(src, vol) {
+        this.stopBgm();
+        try {
+          if (!fileBgmEl) {
+            fileBgmEl = new Audio();
+            fileBgmEl.loop = true;
+          }
+          if (fileBgmEl.src.indexOf(src) === -1) fileBgmEl.src = src;
+          fileBgmEl.volume = (vol == null ? 0.55 : vol);
+          fileBgmEl.currentTime = 0;
+          const p = fileBgmEl.play();
+          if (p && p.catch) p.catch(() => {}); // autoplay失敗は黙殺
+        } catch (e) {}
+      },
       stopBgm() {
         bgmPlaying = null;
         if (bgmTimeout) { clearTimeout(bgmTimeout); bgmTimeout = null; }
+        if (fileBgmEl) { try { fileBgmEl.pause(); } catch (e) {} }
       },
     };
   })();
@@ -237,6 +253,32 @@
   let particles = [];
   let flashAlpha = 0;
   let flashColor = '255,255,255';
+
+  // ===== 画面シェイク + ヒットストップ =====
+  let shakeFrames = 0;
+  let shakeMag    = 0;
+  let hitstopMs   = 0;
+  let hitstopUntil = 0;
+  function triggerShake(frames, mag) {
+    shakeFrames = Math.max(shakeFrames, frames);
+    shakeMag    = Math.max(shakeMag, mag);
+  }
+  function triggerHitstop(ms) {
+    hitstopMs = Math.max(hitstopMs, ms);
+    hitstopUntil = performance.now() + hitstopMs;
+  }
+  function inHitstop() { return performance.now() < hitstopUntil; }
+  function getShakeOffset() {
+    if (shakeFrames <= 0) return { x: 0, y: 0 };
+    const m = shakeMag;
+    return { x: (Math.random() - 0.5) * 2 * m, y: (Math.random() - 0.5) * 2 * m };
+  }
+  function decayShake() {
+    if (shakeFrames > 0) {
+      shakeFrames--;
+      if (shakeFrames === 0) shakeMag = 0;
+    }
+  }
 
   // 風で流れる粒子 (背景演出)
   let windParticles = [];
@@ -757,6 +799,8 @@
   }
 
   function update() {
+    if (inHitstop()) return;
+    decayShake();
     if (currentState === STATE.DODGE) { updateDodge(); return; }
     if (currentState !== STATE.GAME) return;
     updateGoal();
@@ -900,10 +944,16 @@
     if (isGreen && isBull) {
       flashAlpha = 0.6; flashColor = '255,235,59';
       spawnSparkle(cx, cy - 8, '#fff', 14);
+      triggerShake(14, 8);
+      triggerHitstop(110);
     } else if (isGreen) {
       flashAlpha = 0.3; flashColor = '124,252,0';
+      triggerShake(8, 4);
     } else if (isBank) {
       flashAlpha = 0.25; flashColor = '255,152,0';
+      triggerShake(6, 3);
+    } else {
+      triggerShake(4, 2);
     }
     if (isAgainstWind) {
       flashAlpha = Math.max(flashAlpha, 0.18);
@@ -988,6 +1038,9 @@
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
 
+    const sh = getShakeOffset();
+    ctx.save();
+    ctx.translate(sh.x, sh.y);
     drawStars();
     drawWindParticles();
     drawCourt();
@@ -996,6 +1049,7 @@
     drawTrail();
     drawBall();
     drawParticles();
+    ctx.restore();
 
     if (flashAlpha > 0) {
       ctx.fillStyle = `rgba(${flashColor},${flashAlpha})`;
@@ -1721,8 +1775,7 @@
       localStorage.setItem('mhsc_unlocked', '1');
     }
     AudioManager.play('result');
-    const bgmName = myRank <= 3 ? 'result_good' : 'result_bad';
-    AudioManager.playBgm(bgmName);
+    AudioManager.playFileBgm('DANDAN.m4a', 0.55);
     const isNew = Storage.isNewRecord(player.score, myRank);
     Storage.save(player.score, myRank);
     if (isNew) {
@@ -1912,7 +1965,14 @@
     DODGE.oppShake = 12; DODGE.oppFlash = 10;
     setDodgeMsg((crit ? 'CRITICAL! ' : '') + '-' + dmg, 1000);
     AudioManager.play(crit ? 'super' : 'swish');
-    if (crit) { flashAlpha = 0.4; flashColor = '255,235,59'; }
+    if (crit) {
+      flashAlpha = 0.4; flashColor = '255,235,59';
+      triggerShake(14, 9);
+      triggerHitstop(90);
+    } else {
+      triggerShake(5, 3);
+      triggerHitstop(40);
+    }
     setTimeout(() => {
       if (!DODGE.active) return;
       if (DODGE.oppHp <= 0) endDodgeBattle('win');
@@ -2084,6 +2144,8 @@
         DODGE.invincible = 48;
         AudioManager.play('hit');
         flashAlpha = 0.45; flashColor = '220,20,60';
+        triggerShake(8, 5);
+        triggerHitstop(60);
         if (DODGE.hp <= 0) died = true;
       }
     }
@@ -2136,6 +2198,9 @@
   function renderDodge() {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
+    const sh = getShakeOffset();
+    ctx.save();
+    ctx.translate(sh.x, sh.y);
     drawStars();
 
     // 相手(鏡の自分)
@@ -2182,6 +2247,8 @@
       pixelText(DODGE.msg, W / 2, b.y - 34, 10, '#fff', 'center');
     }
 
+    ctx.restore();
+
     if (flashAlpha > 0) {
       ctx.fillStyle = `rgba(${flashColor},${flashAlpha})`;
       ctx.fillRect(0, 0, W, H);
@@ -2227,7 +2294,7 @@
     }
     document.getElementById('dodge-new-record').style.display = isNew ? 'block' : 'none';
 
-    AudioManager.playBgm(win ? 'result_good' : 'result_bad');
+    AudioManager.playFileBgm('DANDAN.m4a', 0.55);
     switchScreen(STATE.DODGE_RESULT);
   }
 
