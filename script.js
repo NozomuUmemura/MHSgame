@@ -197,11 +197,6 @@
   function updateDodgeButtonVisibility() {
     const el = document.getElementById('btn-dodge');
     if (el) el.style.display = localStorage.getItem('mhsc_unlocked') === '1' ? 'inline-block' : 'none';
-    const elRef = document.getElementById('btn-referee');
-    if (elRef) {
-      const cleared = parseInt(localStorage.getItem('mhsc_dodge_best') || '0', 10) > 0;
-      elRef.style.display = cleared ? 'inline-block' : 'none';
-    }
   }
 
   // ===== 画面 =====
@@ -397,7 +392,7 @@
     if      (state === STATE.TITLE)        AudioManager.playBgm('title');
     else if (state === STATE.GAME)         AudioManager.playBgm('game');
     else if (state === STATE.MHS)          AudioManager.stopBgm();
-    else if (state === STATE.DODGE)        AudioManager.playBgm('dodge');
+    else if (state === STATE.DODGE)        AudioManager.playFileBgm('tenshi.m4a', 0.5);
     else if (state === STATE.DODGE_RESULT) { /* BGM は showDodgeResult() で管理 */ }
     const map = {
       [STATE.TITLE]:        'screen-title',
@@ -1752,7 +1747,7 @@
     dialogueScene.classList.add('hidden');
     if (storyMode) {
       // STORYモード: そのまま「自分との闘い」へ
-      setTimeout(() => { if (storyMode) startDodgeGame('self'); }, 500);
+      setTimeout(() => { if (storyMode) startDodgeGame(); }, 500);
       return;
     }
     resultSummary.classList.remove('hidden');
@@ -1821,17 +1816,12 @@
   document.getElementById('btn-dodge').addEventListener('click', () => {
     AudioManager.init();
     AudioManager.play('start');
-    startDodgeGame('self');
-  });
-  document.getElementById('btn-referee').addEventListener('click', () => {
-    AudioManager.init();
-    AudioManager.play('start');
-    startDodgeGame('referee');
+    startDodgeGame();
   });
 
   document.getElementById('dodge-btn-retry').addEventListener('click', () => {
     AudioManager.play('select');
-    startDodgeGame(DODGE.boss);
+    startDodgeGame();
   });
   document.getElementById('dodge-btn-title').addEventListener('click', () => {
     AudioManager.play('select');
@@ -1866,13 +1856,13 @@
   // 部品画像プリロード
   const PART_IMG = {};
   const PART_ORDER = ['gear', 'bolt', 'screw', 'nut', 'board'];
-  PART_ORDER.concat(['whistle']).forEach(name => {
+  PART_ORDER.forEach(name => {
     const img = new Image();
-    img.src = name.charAt(0).toUpperCase() + name.slice(1) + '.png'; // Gear.png / Whistle.png 等
+    img.src = name.charAt(0).toUpperCase() + name.slice(1) + '.png'; // Gear.png 等
     PART_IMG[name] = img;
   });
 
-  const DBOX = { x: 240, y: 160, w: 320, h: 180 }; // バトルボックス(固定)
+  const DBOX = { x: 80, y: 220, w: 640, h: 140 }; // バトルボックス(横長)
   const DODGE_PLAYER_HP = 8;
   const ENEMY_TURN_MS = 6500;
 
@@ -1901,7 +1891,6 @@
     itemsLeft: 3,
     realFormUsed: false,
     realFormActive: false,
-    boss: 'self', // 'self' (鏡の自分) | 'referee' (Whistleボス)
     msg: '', msgUntil: 0,
     active: false,
   };
@@ -1911,9 +1900,8 @@
     DODGE.msgUntil = performance.now() + ms;
   }
 
-  function startDodgeGame(boss) {
+  function startDodgeGame() {
     const lastScore = parseInt(localStorage.getItem('mhsc_last_score') || '0', 10);
-    DODGE.boss = (boss === 'referee') ? 'referee' : 'self';
     DODGE.difficulty = Math.min(1.0, lastScore / 200);
     DODGE.hp = DODGE_PLAYER_HP;
     DODGE.maxHp = DODGE_PLAYER_HP;
@@ -1921,9 +1909,7 @@
     DODGE.round = 0;
     DODGE.outcome = null;
     DODGE.lv = Math.max(1, Math.floor(lastScore / 50) + 1);
-    DODGE.oppHpMax = DODGE.boss === 'referee'
-      ? Math.round(200 + 80 * DODGE.difficulty)
-      : Math.round(100 + 60 * DODGE.difficulty);
+    DODGE.oppHpMax = Math.round(100 + 60 * DODGE.difficulty);
     DODGE.oppHp = DODGE.oppHpMax;
     DODGE.oppShake = 0; DODGE.oppFlash = 0;
     DODGE.bullets = [];
@@ -2177,37 +2163,6 @@
       const altIdx = (DODGE.round + 1) % PART_ORDER.length;
       spawnPartAttack(PART_ORDER[altIdx]);
     }
-    if (DODGE.boss === 'referee') {
-      spawnWhistleAttack();
-    }
-  }
-
-  // 審判戦: 笛が降り注ぐ
-  function spawnWhistleAttack() {
-    const b = DBOX, d = DODGE.difficulty;
-    const spd = 1.3 + d * 1.0 + DODGE.round * 0.04;
-    const n = 2 + Math.floor(d * 2) + Math.floor(DODGE.round / 4);
-    for (let i = 0; i < n; i++) {
-      const fromTop = Math.random() < 0.7;
-      if (fromTop) {
-        const x = b.x + 15 + Math.random() * (b.w - 30);
-        DODGE.bullets.push({
-          img: 'whistle', size: 34, r: 12,
-          x, y: b.y - 20, vx: (Math.random() - 0.5) * 0.8, vy: spd * 1.3,
-          spin: (Math.random() < 0.5 ? -1 : 1) * 0.12,
-        });
-      } else {
-        // 横入射の笛
-        const fromLeft = Math.random() < 0.5;
-        const y = b.y + 25 + Math.random() * (b.h - 50);
-        DODGE.bullets.push({
-          img: 'whistle', size: 32, r: 11,
-          x: fromLeft ? b.x - 24 : b.x + b.w + 24, y,
-          vx: (fromLeft ? 1 : -1) * spd, vy: 0,
-          spin: (fromLeft ? 1 : -1) * 0.15,
-        });
-      }
-    }
   }
 
   function spawnPartAttack(part) {
@@ -2217,7 +2172,7 @@
 
     if (part === 'gear') {
       // 転がる歯車: 左右に横切る + 回転
-      const n = 1 + Math.floor(d * 2) + Math.floor(DODGE.round / 3);
+      const n = 2 + Math.floor(d * 3) + Math.floor(DODGE.round / 3);
       for (let i = 0; i < n; i++) {
         const fromLeft = Math.random() < 0.5;
         const y = b.y + 25 + Math.random() * (b.h - 50);
@@ -2230,7 +2185,7 @@
       }
     } else if (part === 'bolt') {
       // 落下ボルト: 上から高速落下
-      const n = 3 + Math.floor(d * 3) + Math.floor(DODGE.round / 2);
+      const n = 5 + Math.floor(d * 4) + Math.floor(DODGE.round / 2);
       for (let i = 0; i < n; i++) {
         const x = b.x + 15 + Math.random() * (b.w - 30);
         DODGE.bullets.push({
@@ -2241,7 +2196,7 @@
     } else if (part === 'screw') {
       // ねじ込み: 横からサイン波 + 回転
       const dir = Math.random() < 0.5 ? 1 : -1;
-      const n = 2 + Math.floor(d * 2) + Math.floor(DODGE.round / 3);
+      const n = 3 + Math.floor(d * 3) + Math.floor(DODGE.round / 3);
       for (let i = 0; i < n; i++) {
         const y = b.y + 30 + Math.random() * (b.h - 60);
         DODGE.bullets.push({
@@ -2268,7 +2223,7 @@
       const vertical = Math.random() < 0.5;
       const gap = 0.3 + Math.random() * 0.4;
       const fromStart = Math.random() < 0.5;
-      const slots = 6;
+      const slots = vertical ? 11 : 5;
       for (let i = 0; i < slots; i++) {
         const t = (i + 0.5) / slots;
         if (Math.abs(t - gap) < 0.16) continue; // 隙間
@@ -2368,42 +2323,43 @@
     }
   }
 
-  // 背景の薄い緑グリッド (敵領域の上半分)
+  // 背景グリッド (敵領域 = バトル箱の上)
   function drawDodgeGrid() {
     ctx.save();
-    ctx.strokeStyle = 'rgba(60, 140, 60, 0.45)';
-    ctx.lineWidth = 1;
-    const top = 12, bottom = 150, step = 32;
-    for (let x = 0; x <= W; x += step) {
+    ctx.strokeStyle = 'rgba(60, 180, 60, 0.55)';
+    ctx.lineWidth = 1.5;
+    const top = 10, bottom = DBOX.y - 10;
+    const stepX = (W - 20) / 4;
+    const stepY = (bottom - top) / 3;
+    for (let i = 0; i <= 4; i++) {
+      const x = 10 + i * stepX;
       ctx.beginPath(); ctx.moveTo(x + 0.5, top); ctx.lineTo(x + 0.5, bottom); ctx.stroke();
     }
-    for (let y = top; y <= bottom; y += step) {
-      ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); ctx.stroke();
+    for (let i = 0; i <= 3; i++) {
+      const y = top + i * stepY;
+      ctx.beginPath(); ctx.moveTo(10, y + 0.5); ctx.lineTo(W - 10, y + 0.5); ctx.stroke();
     }
     ctx.restore();
   }
 
-  // Undertale風 LV/HP HUD
+  // Undertale風 LV/HP HUD (中央寄せ)
   function drawDodgeHud(left, y) {
-    // YOU LV
-    pixelText('YOU', left, y, 8, '#fff', 'left');
-    pixelText('LV ' + DODGE.lv, left + 56, y, 8, '#fff', 'left');
-    // HP ラベル
-    const hpLabelX = left + 120;
-    pixelText('HP', hpLabelX, y, 8, '#fff', 'left');
-    // HPバー
-    const barX = hpLabelX + 28, barY = y - 1, barW = 100, barH = 10;
+    // 中央レイアウト: LV N    HP [bar]  N/N
+    const cx = W / 2;
+    const barW = 120, barH = 11;
+    // 部品幅を測って中央寄せ
+    pixelText('LV ' + DODGE.lv, cx - 150, y, 9, '#fff', 'left');
+    pixelText('HP', cx - 78, y, 9, '#fff', 'left');
+    const barX = cx - 50, barY = y - 1;
     ctx.fillStyle = '#7a0000'; ctx.fillRect(barX, barY, barW, barH);
     const fillW = Math.max(0, Math.round(barW * DODGE.hp / DODGE.maxHp));
     ctx.fillStyle = '#ffeb3b'; ctx.fillRect(barX, barY, fillW, barH);
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
     ctx.strokeRect(barX + 0.5, barY + 0.5, barW, barH);
-    // 数値
-    pixelText(DODGE.hp + ' / ' + DODGE.maxHp, barX + barW + 8, y, 8, '#fff', 'left');
-    // ROUND と アイテム残数
-    const right = DBOX.x + DBOX.w;
-    pixelText('ROUND ' + Math.max(1, DODGE.round), right, y, 7, '#7cfc00', 'right');
-    pixelText('ITEM x' + DODGE.itemsLeft, right, y + 12, 7, '#ff8c00', 'right');
+    pixelText(DODGE.hp + ' / ' + DODGE.maxHp, barX + barW + 10, y, 9, '#fff', 'left');
+    // ROUND / ITEM 残数 (左右端の補助情報)
+    pixelText('ROUND ' + Math.max(1, DODGE.round), left + 8, y, 7, '#7cfc00', 'left');
+    pixelText('ITEM x' + DODGE.itemsLeft, DBOX.x + DBOX.w - 8, y, 7, '#ff8c00', 'right');
   }
 
   function renderDodge() {
@@ -2415,26 +2371,12 @@
     drawDodgeGrid();
     drawStars();
 
-    // 相手(鏡の自分 / 審判)
+    // 相手(鏡の自分) - グリッド中央寄り上部
     const oppX = W / 2 + (DODGE.oppShake > 0 ? (Math.random() - 0.5) * 8 : 0);
-    if (DODGE.boss === 'referee') {
-      const wh = PART_IMG.whistle;
-      const sz = 56;
-      if (wh && wh.complete && wh.naturalWidth) {
-        ctx.save();
-        if (DODGE.oppFlash > 0) ctx.globalAlpha = 0.6;
-        ctx.drawImage(wh, oppX - sz / 2, 28, sz, sz);
-        ctx.restore();
-      } else {
-        pixelText('REFEREE', oppX, 56, 10, '#fff', 'center');
-      }
-    } else {
-      const oppColor = DODGE.realFormUsed ? '#ff6464' : (DODGE.oppFlash > 0 ? '#fff' : '#f0f0f0');
-      drawDodgeHeart(oppX, 52, oppColor, false);
-    }
-    const barW = 180, barX = W / 2 - barW / 2, barY = 74;
-    pixelText(DODGE.realFormActive ? 'ENEMY!' : (DODGE.boss === 'referee' ? 'REFEREE' : 'ENEMY'),
-              barX, barY - 12, 7,
+    const oppColor = DODGE.realFormUsed ? '#ff6464' : (DODGE.oppFlash > 0 ? '#fff' : '#f0f0f0');
+    drawDodgeHeart(oppX, 90, oppColor, false);
+    const barW = 200, barX = W / 2 - barW / 2, barY = 130;
+    pixelText(DODGE.realFormActive ? 'ENEMY!' : 'ENEMY', barX, barY - 12, 7,
               DODGE.realFormActive ? '#ff6464' : '#f0f0f0', 'left');
     ctx.fillStyle = '#333'; ctx.fillRect(barX, barY, barW, 8);
     ctx.fillStyle = DODGE.realFormActive ? '#ff5252' : '#f0f0f0';
@@ -2491,15 +2433,10 @@
     if (outcome === 'win') {
       AudioManager.play('super');
       flashAlpha = 0.5; flashColor = '255,255,255';
-      setDodgeMsg(DODGE.boss === 'referee'
-        ? '審判の笛が… おちた。'
-        : '…今日のお前には、敵わないな', 1600);
-      if (DODGE.boss === 'referee') localStorage.setItem('mhsc_referee_clear', '1');
+      setDodgeMsg('…今日のお前には、敵わないな', 1600);
     } else {
       AudioManager.play('miss');
-      setDodgeMsg(DODGE.boss === 'referee'
-        ? '笛の連打に、コートが揺れる…'
-        : 'まだだ。ここから越えてみせろ', 1600);
+      setDodgeMsg('まだだ。ここから越えてみせろ', 1600);
     }
     setTimeout(showDodgeResult, 1200);
   }
@@ -2508,8 +2445,7 @@
     const win = DODGE.outcome === 'win';
     const outEl = document.getElementById('dodge-res-outcome');
     const storyPrefix = (storyMode && win) ? '★ STORY CLEAR ★ ' : '';
-    const prefix = DODGE.boss === 'referee' ? '[審判戦] ' : '';
-    outEl.textContent = storyPrefix + prefix + (win ? 'YOU WIN' : 'YOU LOSE');
+    outEl.textContent = storyPrefix + (win ? 'YOU WIN' : 'YOU LOSE');
     outEl.style.color = win ? '#7cfc00' : '#ff5252';
     if (storyMode && win) localStorage.setItem('mhsc_story_clear', '1');
     document.getElementById('dodge-res-rounds').textContent = String(Math.max(1, DODGE.round));
@@ -2518,16 +2454,10 @@
     document.getElementById('dodge-res-diff').textContent = '★'.repeat(stars) + '☆'.repeat(5 - stars);
 
     let isNew = false;
-    if (win && DODGE.boss === 'self') {
+    if (win) {
       const prev = parseInt(localStorage.getItem('mhsc_dodge_best') || '0', 10);
       if (prev === 0 || DODGE.round < prev) {
         localStorage.setItem('mhsc_dodge_best', String(DODGE.round));
-        isNew = true;
-      }
-    } else if (win && DODGE.boss === 'referee') {
-      const prev = parseInt(localStorage.getItem('mhsc_referee_best') || '0', 10);
-      if (prev === 0 || DODGE.round < prev) {
-        localStorage.setItem('mhsc_referee_best', String(DODGE.round));
         isNew = true;
       }
     }
