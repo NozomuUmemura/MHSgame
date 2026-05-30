@@ -1875,6 +1875,8 @@
     fight: { active: false, markerX: 0, speed: 0, locked: false },
     menu: { mode: 'menu', index: 0, msgUntil: 0, msgNextPhase: null },
     itemsLeft: 3,
+    realFormUsed: false,
+    realFormActive: false,
     msg: '', msgUntil: 0,
     active: false,
   };
@@ -1898,6 +1900,8 @@
     DODGE.oppShake = 0; DODGE.oppFlash = 0;
     DODGE.bullets = [];
     DODGE.itemsLeft = 3;
+    DODGE.realFormUsed = false;
+    DODGE.realFormActive = false;
     DODGE.heart = { x: DBOX.x + DBOX.w / 2, y: DBOX.y + DBOX.h / 2 };
     DODGE.fight.active = false;
     DODGE.menu.mode = 'menu'; DODGE.menu.index = 0;
@@ -2060,8 +2064,24 @@
     }
     setTimeout(() => {
       if (!DODGE.active) return;
-      if (DODGE.oppHp <= 0) endDodgeBattle('win');
-      else enterBattlePhase('enemy');
+      if (DODGE.oppHp <= 0) {
+        if (!DODGE.realFormUsed) {
+          // ホンキ発動: HPを少しだけ戻して激化ENEMY_TURNを1回挟む
+          DODGE.realFormUsed = true;
+          DODGE.realFormActive = true;
+          DODGE.oppHp = Math.max(1, Math.round(DODGE.oppHpMax * 0.18));
+          DODGE.oppFlash = 24;
+          triggerShake(22, 10);
+          AudioManager.play('super');
+          flashAlpha = 0.55; flashColor = '255,80,80';
+          setDodgeMsg('まだだ… ホンキを みせてやる!', 1400);
+          setTimeout(() => { if (DODGE.active) enterBattlePhase('enemy'); }, 1400);
+        } else {
+          endDodgeBattle('win');
+        }
+      } else {
+        enterBattlePhase('enemy');
+      }
     }, 1000);
   }
 
@@ -2115,6 +2135,7 @@
     updateDodgeBullets();
 
     if (now - DODGE.phaseTime >= ENEMY_TURN_MS && DODGE.hp > 0) {
+      DODGE.realFormActive = false; // ホンキフェーズはENEMY_TURNを1度抜けたら解除
       enterBattlePhase('player');
     }
   }
@@ -2123,6 +2144,11 @@
   function spawnDodgeAttack() {
     const part = PART_ORDER[(DODGE.round - 1 + PART_ORDER.length) % PART_ORDER.length];
     spawnPartAttack(part);
+    if (DODGE.realFormActive) {
+      // ホンキフェーズ: 別の部品も同時に
+      const altIdx = (DODGE.round + 1) % PART_ORDER.length;
+      spawnPartAttack(PART_ORDER[altIdx]);
+    }
   }
 
   function spawnPartAttack(part) {
@@ -2332,11 +2358,14 @@
 
     // 相手(鏡の自分)
     const oppX = W / 2 + (DODGE.oppShake > 0 ? (Math.random() - 0.5) * 8 : 0);
-    drawDodgeHeart(oppX, 52, DODGE.oppFlash > 0 ? '#fff' : '#f0f0f0', false);
+    const oppColor = DODGE.realFormUsed ? '#ff6464' : (DODGE.oppFlash > 0 ? '#fff' : '#f0f0f0');
+    drawDodgeHeart(oppX, 52, oppColor, false);
     const barW = 180, barX = W / 2 - barW / 2, barY = 74;
-    pixelText('ENEMY', barX, barY - 12, 7, '#f0f0f0', 'left');
+    pixelText(DODGE.realFormActive ? 'ENEMY!' : 'ENEMY', barX, barY - 12, 7,
+              DODGE.realFormActive ? '#ff6464' : '#f0f0f0', 'left');
     ctx.fillStyle = '#333'; ctx.fillRect(barX, barY, barW, 8);
-    ctx.fillStyle = '#f0f0f0'; ctx.fillRect(barX, barY, barW * (DODGE.oppHp / DODGE.oppHpMax), 8);
+    ctx.fillStyle = DODGE.realFormActive ? '#ff5252' : '#f0f0f0';
+    ctx.fillRect(barX, barY, barW * (DODGE.oppHp / DODGE.oppHpMax), 8);
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(barX + 0.5, barY + 0.5, barW, 8);
 
     // バトルボックス
