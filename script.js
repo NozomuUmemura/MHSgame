@@ -200,7 +200,7 @@
   }
 
   // ===== 画面 =====
-  const STATE = { TITLE:'title', MHS:'mhs', GAME:'game', RESULT:'result', DODGE:'dodge', DODGE_RESULT:'dodge_result' };
+  const STATE = { TITLE:'title', GAME:'game', RESULT:'result', DODGE:'dodge', DODGE_RESULT:'dodge_result' };
   let currentState = STATE.TITLE;
 
   // ===== ショット進行 =====
@@ -359,7 +359,7 @@
   // 風の有効加速度 (Focusで補正)
   function effectiveWindAccel() {
     if (!currentWind) return 0;
-    const f = (player.focus === 'M') ? 0.5 : 1.0;
+    const f = 1.0;
     let evMul = 1.0;
     if (currentEvent) {
       if (currentEvent.id === 'GUST')      evMul = 2.0;
@@ -391,12 +391,10 @@
     if (state === STATE.TITLE) { updateBestScoreDisplay(); updateDodgeButtonVisibility(); }
     if      (state === STATE.TITLE)        AudioManager.playBgm('title');
     else if (state === STATE.GAME)         AudioManager.playBgm('game');
-    else if (state === STATE.MHS)          AudioManager.stopBgm();
     else if (state === STATE.DODGE)        AudioManager.playFileBgm('tenshi.m4a', 0.5);
     else if (state === STATE.DODGE_RESULT) { /* BGM は showDodgeResult() で管理 */ }
     const map = {
       [STATE.TITLE]:        'screen-title',
-      [STATE.MHS]:          'screen-mhs',
       [STATE.GAME]:         'screen-game',
       [STATE.RESULT]:       'screen-result',
       [STATE.DODGE]:        'screen-dodge',
@@ -405,82 +403,36 @@
     document.getElementById(map[state]).classList.add('active');
   }
 
-  // ===== タイトル → MHS =====
+  // ===== タイトル → ゲーム =====
   let storyMode = false;
   document.getElementById('btn-story').addEventListener('click', () => {
     AudioManager.init();
-    AudioManager.play('select');
+    AudioManager.play('start');
     storyMode = true;
-    switchScreen(STATE.MHS);
+    startGame();
   });
   document.getElementById('btn-free').addEventListener('click', () => {
     AudioManager.init();
-    AudioManager.play('select');
-    storyMode = false;
-    switchScreen(STATE.MHS);
-  });
-
-  // ===== MHS =====
-  const mhsCards = document.querySelectorAll('.mhs-card');
-  const btnStartGame = document.getElementById('btn-start-game');
-  mhsCards.forEach(card => {
-    card.addEventListener('click', () => {
-      AudioManager.play('select');
-      mhsCards.forEach(c => c.classList.remove('selected'));
-      card.classList.add('selected');
-      player.focus = card.dataset.mhs;
-      btnStartGame.disabled = false;
-    });
-  });
-  btnStartGame.addEventListener('click', () => {
-    if (btnStartGame.disabled) return;
     AudioManager.play('start');
+    storyMode = false;
     startGame();
   });
 
   // ===== Focus 別性能 =====
   function getFocusStats() {
-    if (player.focus === 'M') {
-      return {
-        powerMul:     0.24,
-        jitterAng:    3.5,
-        jitterPwr:    4.0,
-        guideSteps:   12,
-        bounceRetain: 0.70,
-        bankBonus:    1.6,
-        predictGoal:  false,
-        stabilizeGreen: false,
-        windFactor:   0.5,    // 球が重く風の影響半減
-        windDisplayPrecise: false,
-      };
-    } else if (player.focus === 'H') {
-      return {
-        powerMul:     0.22,
-        jitterAng:    0.5,
-        jitterPwr:    0.7,
-        guideSteps:   14,
-        bounceRetain: 0.40,
-        bankBonus:    1.2,
-        predictGoal:  false,
-        stabilizeGreen: true,
-        windFactor:   1.0,
-        windDisplayPrecise: true, // 風表示が精密
-      };
-    } else {
-      return {
-        powerMul:     0.22,
-        jitterAng:    1.5,
-        jitterPwr:    2.0,
-        guideSteps:   28,
-        bounceRetain: 0.40,
-        bankBonus:    1.2,
-        predictGoal:  true,
-        stabilizeGreen: false,
-        windFactor:   1.0,
-        windDisplayPrecise: false,
-        guideUsesWind: true,  // ガイドに風を反映
-      };
-    }
+    // MHS撤去: 安定＆精密プロファイルに固定（旧H相当）
+    return {
+      powerMul:     0.22,
+      jitterAng:    0.5,
+      jitterPwr:    0.7,
+      guideSteps:   14,
+      bounceRetain: 0.40,
+      bankBonus:    1.2,
+      predictGoal:  false,
+      stabilizeGreen: true,
+      windFactor:   1.0,
+      windDisplayPrecise: true,
+    };
   }
 
   // ===== ゲーム開始 =====
@@ -504,10 +456,6 @@
     eventCountThisGame = 0;
 
     cpuProgressions = generateCpuProgressions();
-    document.getElementById('hud-focus').textContent =
-      player.focus === 'M' ? 'M' :
-      player.focus === 'H' ? 'H' :
-      player.focus === 'S' ? 'S' : '-';
 
     document.getElementById('rank-info').classList.add('hidden');
 
@@ -651,8 +599,9 @@
       if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault();
         if (!e.repeat) {
-          AudioManager.play('select');
-          switchScreen(STATE.MHS);
+          AudioManager.play('start');
+          storyMode = false;
+          startGame();
         }
       }
       return;
@@ -1349,13 +1298,6 @@
 
     drawCatapultFlag(cx, baseY);
 
-    const stats = getFocusStats();
-    if (stats.stabilizeGreen && player.ballColor === 'green' && phase === PHASE.AIM) {
-      pixelText('STABILIZED', cx, baseY - 90, 7, '#4fc3f7', 'center');
-    }
-    if (player.focus === 'M' && phase === PHASE.AIM) {
-      pixelText('MK-II', cx + 30, baseY - 88, 6, '#ff7043', 'center');
-    }
   }
 
   // 風向きに応じてなびく旗
@@ -1838,9 +1780,6 @@
     AudioManager.play('select');
     clearSettleTimer();
     resetDialogue();
-    mhsCards.forEach(c => c.classList.remove('selected'));
-    player.focus = null;
-    btnStartGame.disabled = true;
     phase = PHASE.AIM;
     activeBall = null;
     trail = [];
