@@ -2631,21 +2631,6 @@
     switchScreen(STATE.DODGE_RESULT);
   }
 
-  // ===== 画面の向き判定（横向き要求オーバーレイ） =====
-  // CSSの @media(orientation) はブラウザによって不安定なため、
-  // 実際の幅と高さを直接比較して判定する。
-  // 幅 > 高さ = 横向き → プレイ可 / 幅 <= 高さ = 縦向き → 「横にして」表示
-  const rotateOverlay = document.getElementById('rotate-overlay');
-  function checkOrientation() {
-    if (!rotateOverlay) return;
-    const portrait = window.innerHeight > window.innerWidth;
-    rotateOverlay.classList.toggle('show', portrait);
-    document.body.classList.toggle('portrait', portrait);
-  }
-  window.addEventListener('resize', checkOrientation);
-  window.addEventListener('orientationchange', checkOrientation);
-  checkOrientation();
-
   // ===== 起動 =====
   switchScreen(STATE.TITLE);
   requestAnimationFrame(loopRaf);
