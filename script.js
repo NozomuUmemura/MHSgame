@@ -2515,4 +2515,125 @@
     pixelText('LV ' + DODGE.lv, cx - 150, y, 9, '#fff', 'left');
     pixelText('HP', cx - 78, y, 9, '#fff', 'left');
     const barX = cx - 50, barY = y - 1;
-    ctx.fillStyle = '#7a0000'; ctx.fillRect(barX, barY, barW, barH)
+    ctx.fillStyle = '#7a0000'; ctx.fillRect(barX, barY, barW, barH);
+    const fillW = Math.max(0, Math.round(barW * DODGE.hp / DODGE.maxHp));
+    ctx.fillStyle = '#ffeb3b'; ctx.fillRect(barX, barY, fillW, barH);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+    ctx.strokeRect(barX + 0.5, barY + 0.5, barW, barH);
+    pixelText(DODGE.hp + ' / ' + DODGE.maxHp, barX + barW + 10, y, 9, '#fff', 'left');
+    // ROUND / ITEM 残数 (左右端の補助情報)
+    pixelText('ROUND ' + Math.max(1, DODGE.round), left + 8, y, 7, '#7cfc00', 'left');
+    pixelText('ITEM x' + DODGE.itemsLeft, DBOX.x + DBOX.w - 8, y, 7, '#ff8c00', 'right');
+  }
+
+  function renderDodge() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    const sh = getShakeOffset();
+    ctx.save();
+    ctx.translate(sh.x, sh.y);
+    drawDodgeGrid();
+    drawStars();
+
+    // 相手(鏡の自分) - グリッド中央寄り上部
+    const oppX = W / 2 + (DODGE.oppShake > 0 ? (Math.random() - 0.5) * 8 : 0);
+    const oppColor = DODGE.realFormUsed ? '#ff6464' : (DODGE.oppFlash > 0 ? '#fff' : '#f0f0f0');
+    drawDodgeHeart(oppX, 90, oppColor, false);
+    const barW = 200, barX = W / 2 - barW / 2, barY = 130;
+    pixelText(DODGE.realFormActive ? 'ENEMY!' : 'ENEMY', barX, barY - 12, 7,
+              DODGE.realFormActive ? '#ff6464' : '#f0f0f0', 'left');
+    ctx.fillStyle = '#333'; ctx.fillRect(barX, barY, barW, 8);
+    ctx.fillStyle = DODGE.realFormActive ? '#ff5252' : '#f0f0f0';
+    ctx.fillRect(barX, barY, barW * (DODGE.oppHp / DODGE.oppHpMax), 8);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(barX + 0.5, barY + 0.5, barW, 8);
+
+    // バトルボックス
+    const b = DBOX;
+    ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.strokeRect(b.x, b.y, b.w, b.h);
+
+    if (DODGE.battlePhase === 'enemy') {
+      renderDodgeBullets();
+      drawDodgeHeart(DODGE.heart.x, DODGE.heart.y, '#e61c3b', DODGE.invincible > 0);
+    } else if (DODGE.battlePhase === 'player' || DODGE.battlePhase === 'intro') {
+      drawDodgeHeart(DODGE.heart.x, DODGE.heart.y, '#e61c3b', false);
+    }
+
+    // 自分のLV / HP (Undertale風)
+    drawDodgeHud(b.x, b.y + b.h + 12);
+
+    // FIGHT バー
+    if (DODGE.battlePhase === 'player' && DODGE.fight.active) {
+      const gy = b.y + b.h + 38, gx = b.x + 10, gw = b.w - 20;
+      ctx.fillStyle = '#222'; ctx.fillRect(gx, gy, gw, 12);
+      const center = b.x + b.w / 2, sw = gw * 0.08;
+      ctx.fillStyle = '#ffeb3b'; ctx.fillRect(center - sw, gy, sw * 2, 12);
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(gx + 0.5, gy + 0.5, gw, 12);
+      ctx.fillStyle = '#fff'; ctx.fillRect(DODGE.fight.markerX - 1, gy - 3, 3, 18);
+    }
+
+    // メッセージ
+    if (DODGE.msg && performance.now() < DODGE.msgUntil) {
+      pixelText(DODGE.msg, W / 2, b.y - 34, 10, '#fff', 'center');
+    }
+
+    ctx.restore();
+
+    if (flashAlpha > 0) {
+      ctx.fillStyle = `rgba(${flashColor},${flashAlpha})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    drawBorder();
+  }
+
+  function endDodgeBattle(outcome) {
+    if (!DODGE.active) return;
+    DODGE.active = false;
+    DODGE.outcome = outcome;
+    DODGE.battlePhase = outcome;
+    DODGE.bullets = [];
+    syncDodgeUI();
+    AudioManager.stopBgm();
+    if (outcome === 'win') {
+      AudioManager.play('super');
+      flashAlpha = 0.5; flashColor = '255,255,255';
+      setDodgeMsg('* …今日のお前には、敵わないな。\n  認めてやる。', 2000);
+    } else {
+      AudioManager.play('miss');
+      setDodgeMsg('* まだ終わりじゃない。\n  立ち上がれ。', 2000);
+    }
+    setTimeout(showDodgeResult, 1200);
+  }
+
+  function showDodgeResult() {
+    const win = DODGE.outcome === 'win';
+    const outEl = document.getElementById('dodge-res-outcome');
+    const storyPrefix = (storyMode && win) ? '★ STORY CLEAR ★ ' : '';
+    outEl.textContent = storyPrefix + (win ? 'YOU WIN' : 'YOU LOSE');
+    outEl.style.color = win ? '#7cfc00' : '#ff5252';
+    if (storyMode && win) localStorage.setItem('mhsc_story_clear', '1');
+    document.getElementById('dodge-res-rounds').textContent = String(Math.max(1, DODGE.round));
+
+    const stars = Math.round(DODGE.difficulty * 5);
+    document.getElementById('dodge-res-diff').textContent = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+
+    let isNew = false;
+    if (win) {
+      const prev = parseInt(localStorage.getItem('mhsc_dodge_best') || '0', 10);
+      if (prev === 0 || DODGE.round < prev) {
+        localStorage.setItem('mhsc_dodge_best', String(DODGE.round));
+        isNew = true;
+      }
+    }
+    document.getElementById('dodge-new-record').style.display = isNew ? 'block' : 'none';
+
+    AudioManager.playFileBgm('DANDAN.m4a', 0.55);
+    switchScreen(STATE.DODGE_RESULT);
+  }
+
+  // ===== 起動 =====
+  switchScreen(STATE.TITLE);
+  requestAnimationFrame(loopRaf);
+  // rAFが止まる(非表示タブ等)場合の保険
+  setInterval(loopOnce, 50);
+})();

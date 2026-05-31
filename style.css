@@ -678,4 +678,97 @@ body { display: flex; justify-content: center; align-items: center; }
 
 /* ===== 横向きオーバーレイ ===== */
 #rotate-overlay {
- 
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+.rotate-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  font-size: clamp(12px, 3vw, 18px);
+  letter-spacing: 2px;
+}
+.rotate-icon {
+  font-size: 64px;
+  animation: spin-hint 2s ease-in-out infinite;
+}
+@keyframes spin-hint {
+  0%   { transform: rotate(0deg); }
+  40%  { transform: rotate(90deg); }
+  60%  { transform: rotate(90deg); }
+  100% { transform: rotate(0deg); }
+}
+@media (orientation: portrait) {
+  #rotate-overlay { display: flex; }
+}
+
+/* ===== タッチボタン最小サイズ（スマホ向け） ===== */
+.ctrl-btn       { min-height: 44px; }
+.ctrl-btn.fire  { min-width: 96px; }
+.hud-bottom     { padding: 12px; }
+
+/* ===== ドッジ画面専用: アクションボタンを上に確保 ===== */
+#dodge-hud {
+  padding: 6px 8px;
+  justify-content: flex-start;
+  gap: 4px;
+}
+#dodge-hud .touch-controls { margin-bottom: 2px; }
+#dodge-hud .hint.mini { font-size: 7px; margin-top: 2px; }
+.act-btn .act-ic { margin-right: 3px; }
+
+/* ===== ダイアログ ピクセルハート ===== */
+#pixel-heart {
+  width: 28px;
+  height: 24px;
+  position: relative;
+  flex-shrink: 0;
+}
+#pixel-heart::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 4px; height: 4px;
+  background: transparent;
+  box-shadow:
+    4px 0 0 0 #e61c3b, 8px 0 0 0 #e61c3b, 16px 0 0 0 #e61c3b, 20px 0 0 0 #e61c3b,
+    0px 4px 0 0 #e61c3b, 4px 4px 0 0 #e61c3b, 8px 4px 0 0 #e61c3b, 12px 4px 0 0 #e61c3b, 16px 4px 0 0 #e61c3b, 20px 4px 0 0 #e61c3b, 24px 4px 0 0 #e61c3b,
+    0px 8px 0 0 #e61c3b, 4px 8px 0 0 #e61c3b, 8px 8px 0 0 #e61c3b, 12px 8px 0 0 #e61c3b, 16px 8px 0 0 #e61c3b, 20px 8px 0 0 #e61c3b, 24px 8px 0 0 #e61c3b,
+    4px 12px 0 0 #e61c3b, 8px 12px 0 0 #e61c3b, 12px 12px 0 0 #e61c3b, 16px 12px 0 0 #e61c3b, 20px 12px 0 0 #e61c3b,
+    8px 16px 0 0 #e61c3b, 12px 16px 0 0 #e61c3b, 16px 16px 0 0 #e61c3b,
+    12px 20px 0 0 #e61c3b;
+  transform-origin: 14px 12px;
+  animation: heart-beat 0.8s ease-in-out infinite;
+}
+@keyframes heart-beat {
+  0%, 100% { transform: scale(1.0); }
+  50%       { transform: scale(1.15); }
+}
+
+#btn-dodge { color: #e61c3b; border-color: #e61c3b; }
+#btn-dodge:hover:not(:disabled) { background: #e61c3b; color: #fff; }
+
+/* ===== 自分との闘い 画面 ===== */
+#screen-dodge {
+  background: transparent;
+  pointer-events: none;
+}
+#screen-dodge #dodge-hud {
+  pointer-events: auto;
+}
+#screen-dodge-result {
+  background: #000;
+  flex-direction: column;
+}
+
+@keyframes logoPulse {
+  0%, 100% { filter: brightness(1);    transform: scale(1); }
+  50%       { filter: brightness(1.35); transform: scale(1.03); }
+}
