@@ -705,9 +705,8 @@ body { display: flex; justify-content: center; align-items: center; }
   60%  { transform: rotate(90deg); }
   100% { transform: rotate(0deg); }
 }
-@media (orientation: portrait) {
-  #rotate-overlay { display: flex; }
-}
+/* 表示はJS(checkOrientation)が .show クラスで制御する */
+#rotate-overlay.show { display: flex; }
 
 /* ===== タッチボタン最小サイズ（スマホ向け） ===== */
 .ctrl-btn       { min-height: 44px; }
