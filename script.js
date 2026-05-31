@@ -229,6 +229,7 @@
   // ===== 物理 =====
   const LAUNCHER = { x: 110, y: 380 };
   const GRAVITY  = 0.45;
+  let lastFireTime = -9999; // 発射リコイル演出の基準時刻
 
   // ===== コート =====
   const COURT = {
@@ -557,6 +558,7 @@
     };
     trail = [];
     phase = PHASE.FLY;
+    lastFireTime = performance.now();
     AudioManager.play('fire');
   }
 
@@ -1240,64 +1242,113 @@
   function drawCatapult() {
     const baseY = COURT.floorY;
     const cx    = LAUNCHER.x;
+    const now   = performance.now();
+    const glow  = 0.55 + 0.45 * Math.sin(now / 300);   // 関節/クランプ脈動
+    const since = now - lastFireTime;
+    const recoil = since < 220 ? (1 - since / 220) : 0; // 1→0 減衰
+    const dx = -8 * recoil;                             // 発射で後方(左)へキック
 
+    // 影
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(cx - 60, baseY - 2, 120, 4);
 
-    drawWheel(cx - 42, baseY - 6, 9);
-    drawWheel(cx + 42, baseY - 6, 9);
+    // 走行部(装甲ホイール)
+    drawMechaWheel(cx - 40 + dx, baseY - 7, 10, glow);
+    drawMechaWheel(cx + 40 + dx, baseY - 7, 10, glow);
 
-    drawWoodPlank(cx - 56, baseY - 28, 112, 6, false);
-    drawWoodPlank(cx - 50, baseY - 22, 100, 8, true);
-    drawWoodPlank(cx - 36, baseY - 18, 72, 4, false);
+    // 基部シャーシ
+    const sx = cx - 50 + dx, sy = baseY - 30, sw = 100, sh = 22;
+    ctx.fillStyle = '#2b3038'; ctx.fillRect(sx, sy, sw, sh);
+    ctx.fillStyle = '#3a4250'; ctx.fillRect(sx, sy, sw, sh - 3);
+    ctx.fillStyle = '#566073'; ctx.fillRect(sx, sy, sw, 2);
+    ctx.fillStyle = '#20252c'; ctx.fillRect(sx, sy + sh - 3, sw, 3);
+    ctx.fillStyle = '#20252c'; ctx.fillRect(sx + sw * 0.42, sy + 3, 1, sh - 8);
+    // 警告ストライプ
+    for (let i = 0; i < 5; i++) {
+      ctx.fillStyle = (i % 2 === 0) ? '#ff8c1a' : '#20252c';
+      ctx.fillRect(sx + 8 + i * 7, sy + sh - 8, 5, 4);
+    }
 
-    const pivotX = cx;
-    const pivotY = baseY - 72;
-    drawDiagPlank(cx - 32, baseY - 22, pivotX - 4, pivotY, 4, '#8d5a2b', '#a96d3a', '#5c3a1c');
-    drawDiagPlank(cx + 32, baseY - 22, pivotX + 4, pivotY, 4, '#8d5a2b', '#a96d3a', '#5c3a1c');
+    // ピボット支柱(2本) + 油圧ピストン
+    const pivotX = cx + dx;
+    const pivotY = baseY - 60;
+    drawMechaStrut(cx - 22 + dx, sy, pivotX - 3, pivotY);
+    drawMechaStrut(cx + 22 + dx, sy, pivotX + 3, pivotY);
+    drawMechaPiston(cx - 30 + dx, sy + 4, pivotX - 6, pivotY + 6, glow);
+    drawMechaPiston(cx + 30 + dx, sy + 4, pivotX + 6, pivotY + 6, glow);
 
-    ctx.fillStyle = '#444'; ctx.fillRect(pivotX - 6, pivotY - 3, 12, 6);
-    ctx.fillStyle = '#aaa'; ctx.fillRect(pivotX - 6, pivotY - 3, 12, 1);
-    ctx.fillStyle = '#222'; ctx.fillRect(pivotX - 6, pivotY + 2, 12, 1);
-    ctx.fillStyle = '#ffd54f'; ctx.fillRect(pivotX - 1, pivotY - 1, 3, 3);
+    // ピボット関節(発光)
+    ctx.fillStyle = '#20252c'; ctx.fillRect(pivotX - 7, pivotY - 7, 14, 14);
+    ctx.fillStyle = '#3a4250'; ctx.fillRect(pivotX - 5, pivotY - 5, 10, 10);
+    ctx.fillStyle = `rgba(41,224,230,${glow})`; ctx.fillRect(pivotX - 3, pivotY - 3, 6, 6);
+    ctx.fillStyle = '#bff7fa'; ctx.fillRect(pivotX - 1, pivotY - 1, 2, 2);
 
+    // メカアーム
     const armLen = 78;
     const ang    = player.angleDeg * Math.PI / 180;
     ctx.save();
     ctx.translate(pivotX, pivotY);
     ctx.rotate(-ang);
 
-    ctx.fillStyle = '#5c3a1c'; ctx.fillRect(-22, -4, 22, 8);
-    ctx.fillStyle = '#7a4f2a'; ctx.fillRect(-22, -4, 22, 2);
-    ctx.fillStyle = '#444';    ctx.fillRect(-26, -8, 8, 16);
-    ctx.fillStyle = '#888';    ctx.fillRect(-26, -8, 8, 2);
-    ctx.fillStyle = '#222';    ctx.fillRect(-26,  6, 8, 2);
+    // カウンターウェイト(後方)
+    ctx.fillStyle = '#20252c'; ctx.fillRect(-30, -9, 22, 18);
+    ctx.fillStyle = '#3a4250'; ctx.fillRect(-30, -9, 22, 4);
+    ctx.fillStyle = `rgba(41,224,230,${glow})`; ctx.fillRect(-26, 1, 14, 2);
 
-    ctx.fillStyle = '#a96d3a'; ctx.fillRect(0, -4, armLen, 8);
-    ctx.fillStyle = '#c98d4a'; ctx.fillRect(0, -4, armLen, 2);
-    ctx.fillStyle = '#6b3f1a'; ctx.fillRect(0,  2, armLen, 2);
-
+    // アーム本体(装甲パネル)
+    ctx.fillStyle = '#2b3038'; ctx.fillRect(0, -5, armLen, 10);
+    ctx.fillStyle = '#3a4250'; ctx.fillRect(0, -5, armLen, 6);
+    ctx.fillStyle = '#566073'; ctx.fillRect(0, -5, armLen, 2);
+    ctx.fillStyle = '#20252c'; ctx.fillRect(0,  3, armLen, 2);
     for (let i = 1; i <= 3; i++) {
-      const bx = i * (armLen / 4);
-      ctx.fillStyle = '#666'; ctx.fillRect(bx - 1, -5, 2, 10);
-      ctx.fillStyle = '#aaa'; ctx.fillRect(bx - 1, -5, 1, 10);
+      const jx = i * (armLen / 4);
+      ctx.fillStyle = '#20252c'; ctx.fillRect(jx - 1, -6, 3, 12);
+      ctx.fillStyle = `rgba(41,224,230,${glow * 0.8})`; ctx.fillRect(jx, -1, 1, 2);
     }
 
-    ctx.fillStyle = '#5a3a1a'; ctx.fillRect(armLen - 2, -12, 4, 24);
-    ctx.fillStyle = '#8a5a2a'; ctx.fillRect(armLen + 2, -12, 12, 24);
-    ctx.fillStyle = '#a06a3a'; ctx.fillRect(armLen + 2, -12, 12, 3);
-    ctx.fillStyle = '#3a2010'; ctx.fillRect(armLen + 2, 9,   12, 3);
-    ctx.fillStyle = '#222';
-    ctx.fillRect(armLen + 2, -12, 1, 24);
-    ctx.fillRect(armLen + 13,-12, 1, 24);
+    // 先端 電磁クランプ
+    const tip = armLen;
+    ctx.fillStyle = '#20252c'; ctx.fillRect(tip - 2, -12, 6, 24);
+    ctx.fillStyle = '#3a4250'; ctx.fillRect(tip + 4, -11, 8, 22);
+    ctx.fillStyle = '#566073'; ctx.fillRect(tip + 4, -11, 8, 2);
+    ctx.fillStyle = '#566073'; ctx.fillRect(tip + 12, -11, 4, 5);
+    ctx.fillStyle = '#566073'; ctx.fillRect(tip + 12,   6, 4, 5);
+    ctx.fillStyle = `rgba(41,224,230,${glow})`; ctx.fillRect(tip + 5, -3, 6, 6);
 
-    if (phase === PHASE.AIM) {
-      drawPixelBall(armLen + 8, 0, player.ballColor);
+    if (phase === PHASE.AIM || currentState === STATE.TITLE) {
+      drawPixelBall(tip + 8, 0, player.ballColor, true);
     }
     ctx.restore();
 
-    drawCatapultFlag(cx, baseY);
+    drawCatapultFlag(cx + dx, baseY);
+  }
 
+  function drawMechaWheel(cx, cy, r, glow) {
+    ctx.fillStyle = '#15181d';
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#566073'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#3a4250'; ctx.fillRect(cx - 3, cy - 3, 6, 6);
+    ctx.fillStyle = `rgba(41,224,230,${glow})`; ctx.fillRect(cx - 1, cy - 1, 2, 2);
+  }
+
+  function drawMechaStrut(x1, y1, x2, y2) {
+    drawDiagPlank(x1, y1, x2, y2, 5, '#3a4250', '#566073', '#20252c');
+  }
+
+  function drawMechaPiston(x1, y1, x2, y2, glow) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy);
+    const a = Math.atan2(dy, dx);
+    ctx.save();
+    ctx.translate(x1, y1);
+    ctx.rotate(a);
+    const cyl = len * 0.55;
+    ctx.fillStyle = '#20252c'; ctx.fillRect(0, -3, cyl, 6);
+    ctx.fillStyle = '#3a4250'; ctx.fillRect(0, -3, cyl, 5);
+    ctx.fillStyle = '#566073'; ctx.fillRect(0, -3, cyl, 1);
+    ctx.fillStyle = '#9aa3b3'; ctx.fillRect(cyl, -1.5, len - cyl, 3);
+    ctx.fillStyle = `rgba(41,224,230,${glow})`; ctx.fillRect(len - 3, -1, 2, 2);
+    ctx.restore();
   }
 
   // 風向きに応じてなびく旗
@@ -1306,9 +1357,11 @@
     const t = performance.now() / 150;
     const flagW = 20;
     const flagH = 12;
-    // ポール
-    ctx.fillStyle = '#fff';
+    // 金属ポール + 発光基部
+    ctx.fillStyle = '#566073';
     ctx.fillRect(cx - 56, baseY - 60, 2, 38);
+    ctx.fillStyle = '#29e0e6';
+    ctx.fillRect(cx - 57, baseY - 60, 4, 2);
 
     if (!wind) {
       ctx.fillStyle = '#b71c1c';
@@ -1347,32 +1400,6 @@
     const labelX = dir > 0 ? cx - 44 : cx - 56 - flagW + 10;
     const labelY = baseY - 60 + Math.sin(t + 1) * (1 + wind.level * 0.6);
     pixelText('T4', labelX, labelY + 3, 7, '#fff', 'center');
-  }
-
-  function drawWheel(cx, cy, r) {
-    ctx.fillStyle = '#222';
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.fillStyle = '#888'; ctx.fillRect(cx - 2, cy - 2, 4, 4);
-    ctx.strokeStyle = '#666'; ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cx - r + 1, cy); ctx.lineTo(cx + r - 1, cy);
-    ctx.moveTo(cx, cy - r + 1); ctx.lineTo(cx, cy + r - 1);
-    ctx.stroke();
-  }
-
-  function drawWoodPlank(x, y, w, h, withNails) {
-    ctx.fillStyle = '#3a2410'; ctx.fillRect(x, y + h - 2, w, 2);
-    ctx.fillStyle = '#8a5a2a'; ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = '#a06a3a'; ctx.fillRect(x, y, w, 1);
-    ctx.fillStyle = 'rgba(58,32,16,0.5)'; ctx.fillRect(x + 2, y + 2, w - 4, 1);
-    if (withNails) {
-      ctx.fillStyle = '#ddd';
-      ctx.fillRect(x + 3, y + 2, 1, 1);
-      ctx.fillRect(x + w - 4, y + 2, 1, 1);
-    }
   }
 
   function drawDiagPlank(x1, y1, x2, y2, thick, base, hi, sh) {
