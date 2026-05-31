@@ -73,11 +73,11 @@ body { display: flex; justify-content: center; align-items: center; }
 #screen-game .rank-info { pointer-events: auto; }
 
 /* ===== タイトル ===== */
-#screen-title { background: #000; flex-direction: column; }
+#screen-title { background: transparent; flex-direction: column; }
 .title-box {
   border: 4px solid #fff;
   padding: 6% 8%;
-  background: #000;
+  background: rgba(0, 0, 0, 0.35);
   box-shadow: inset 0 0 0 2px #000, inset 0 0 0 4px #555;
   position: relative;
 }
@@ -93,8 +93,14 @@ body { display: flex; justify-content: center; align-items: center; }
   font-size: clamp(22px, 6vw, 44px);
   letter-spacing: 4px;
   margin-bottom: 6px;
-  text-shadow: 4px 4px 0 #b71c1c, 8px 8px 0 #4a0c0c;
   line-height: 1.2;
+  color: #fff;
+  text-shadow:
+    0 0 4px #29e0e6,
+    0 0 12px #29e0e6,
+    0 0 22px #0fb9c4,
+    3px 3px 0 #ff8c1a;
+  animation: logoPulse 1.6s ease-in-out infinite;
 }
 .pixel-subtitle {
   font-size: clamp(10px, 2vw, 14px);
@@ -106,8 +112,9 @@ body { display: flex; justify-content: center; align-items: center; }
   font-size: clamp(10px, 2vw, 14px);
   animation: blink 0.8s steps(2) infinite;
   margin-bottom: 20px;
-  color: #fff;
+  color: #29e0e6;
   letter-spacing: 3px;
+  text-shadow: 0 0 6px #29e0e6, 0 0 12px #0fb9c4;
 }
 @keyframes blink { 50% { opacity: 0; } }
 
@@ -195,9 +202,11 @@ body { display: flex; justify-content: center; align-items: center; }
 
 /* ===== 共通ボタン ===== */
 .ui-button {
-  background: #000;
-  color: #fff;
-  border: 3px solid #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border: 3px solid #29e0e6;
+  color: #bff7fa;
+  text-shadow: 0 0 6px #0fb9c4;
+  box-shadow: 0 0 8px rgba(41, 224, 230, 0.5);
   padding: 12px 24px;
   margin: 6px;
   font-family: inherit;
@@ -205,9 +214,13 @@ body { display: flex; justify-content: center; align-items: center; }
   letter-spacing: 4px;
   cursor: pointer;
   transition: background 0.05s, color 0.05s, transform 0.05s;
-  box-shadow: 4px 4px 0 #444;
 }
-.ui-button:hover:not(:disabled) { background: #fff; color: #000; }
+.ui-button:hover:not(:disabled) {
+  background: #29e0e6;
+  color: #001014;
+  text-shadow: none;
+  box-shadow: 0 0 16px rgba(41, 224, 230, 0.9);
+}
 .ui-button:active:not(:disabled) {
   transform: translate(2px, 2px);
   box-shadow: 2px 2px 0 #444;
@@ -629,4 +642,9 @@ body { display: flex; justify-content: center; align-items: center; }
 #screen-dodge-result {
   background: #000;
   flex-direction: column;
+}
+
+@keyframes logoPulse {
+  0%, 100% { filter: brightness(1);    transform: scale(1); }
+  50%       { filter: brightness(1.35); transform: scale(1.03); }
 }

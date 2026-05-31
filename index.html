@@ -31,56 +31,12 @@
       </div>
     </div>
 
-    <!-- ===== M/H/S 強化選択 ===== -->
-    <div id="screen-mhs" class="screen">
-      <div class="mhs-box">
-        <h2 class="pixel-heading">CHOOSE FOCUS</h2>
-        <p class="pixel-text pixel-jp">どんなスタイルで戦う？</p>
-
-        <div class="mhs-options">
-          <button class="mhs-card" data-mhs="M">
-            <div class="mhs-letter mhs-m">M</div>
-            <div class="mhs-name">MECHANICS</div>
-            <div class="mhs-desc pixel-jp">
-              機構を強化<br>
-              <span class="mhs-tag">バンク特化</span><br>
-              反発UP / 球が重く風に強い<br>
-              多少ブレる
-            </div>
-          </button>
-          <button class="mhs-card" data-mhs="H">
-            <div class="mhs-letter mhs-h">H</div>
-            <div class="mhs-name">HARDWARE</div>
-            <div class="mhs-desc pixel-jp">
-              電子制御で安定<br>
-              <span class="mhs-tag">安定型</span><br>
-              ブレ最小 / 緑球が更安定<br>
-              風の値が精密表示
-            </div>
-          </button>
-          <button class="mhs-card" data-mhs="S">
-            <div class="mhs-letter mhs-s">S</div>
-            <div class="mhs-name">SOFTWARE</div>
-            <div class="mhs-desc pixel-jp">
-              軌道を予測補正<br>
-              <span class="mhs-tag">予測型</span><br>
-              長いガイド / 動く的を予測<br>
-              ガイドに風を反映
-            </div>
-          </button>
-        </div>
-
-        <button class="ui-button" id="btn-start-game" disabled>GO!</button>
-      </div>
-    </div>
-
     <!-- ===== ゲーム ===== -->
     <div id="screen-game" class="screen">
       <div class="hud-top">
         <div class="hud-cell">SHOT <span id="hud-shot">1</span>/10</div>
         <div class="hud-cell">SCORE <span id="hud-score">0</span></div>
         <div class="hud-cell">STREAK x<span id="hud-streak">1.0</span></div>
-        <div class="hud-cell">FOCUS <span id="hud-focus">-</span></div>
       </div>
 
       <div id="rank-info" class="rank-info hidden">
