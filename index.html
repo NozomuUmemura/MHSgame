@@ -18,16 +18,27 @@
 
     <!-- ===== タイトル ===== -->
     <div id="screen-title" class="screen active">
-      <div class="title-box">
-        <h1 class="pixel-title pixel-jp">バスケが</h1>
-        <h1 class="pixel-title pixel-jp">したいです</h1>
-        <h2 class="pixel-subtitle">- MHS CATAPULT -</h2>
-        <p class="blink">PRESS START</p>
-        <button class="ui-button" id="btn-story" data-action="goto-mhs">STORY</button>
-        <button class="ui-button" id="btn-free" data-action="goto-mhs">FREE</button>
-        <button class="ui-button" id="btn-dodge" style="display:none;">自分との闘い</button>
-        <p class="hint">SPACE / CLICK / TAP</p>
-        <p id="best-score-display" class="hint" style="margin-top:10px;color:#ffeb3b;">- - -</p>
+      <div class="title-layout">
+        <div class="title-eyebrow">MHS CATAPULT CHALLENGE</div>
+        <div class="title-main-wrap">
+          <h1 class="title-main pixel-jp">バスケが</h1>
+          <h1 class="title-main pixel-jp">したいです</h1>
+        </div>
+        <div class="title-divider"><span class="title-divider-line"></span><span class="title-divider-diamond">◆</span><span class="title-divider-line"></span></div>
+        <p class="title-blink">▶ PRESS START</p>
+        <div class="title-buttons">
+          <button class="title-btn" id="btn-story">
+            <span class="title-btn-arrow">▶</span>STORY MODE
+          </button>
+          <button class="title-btn" id="btn-free">
+            <span class="title-btn-arrow">▶</span>FREE PLAY
+          </button>
+          <button class="title-btn title-btn-red" id="btn-dodge" style="display:none;">
+            <span class="title-btn-arrow">▶</span>自分との闘い
+          </button>
+        </div>
+        <p id="best-score-display" class="title-best">- - -</p>
+        <p class="title-hint">SPACE / CLICK / TAP</p>
       </div>
     </div>
 

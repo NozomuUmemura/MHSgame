@@ -433,6 +433,7 @@
       stabilizeGreen: true,
       windFactor:   1.0,
       windDisplayPrecise: true,
+      guideUsesWind: true,
     };
   }
 
@@ -867,7 +868,7 @@
     const isAgainstWind = (activeBall.windDirAtFire < 0 && activeBall.windLevelAtFire >= 2);
 
     let base;
-    if (isGreen) base = isBull ? 80 : 15;
+    if (isGreen) base = isBull ? 80 : 25;
     else         base = isBull ? 25 : 10;
 
     const bankMul = isBank ? stats.bankBonus : 1.0;
@@ -1025,12 +1026,81 @@
     drawBorder();
   }
 
+  // タイトル専用パーティクル (エネルギーストリーク)
+  const titleStreaks = [];
+  for (let i = 0; i < 18; i++) titleStreaks.push(makeTitleStreak());
+  function makeTitleStreak() {
+    return {
+      x: Math.random() * W,
+      y: Math.random() * H,
+      len: 30 + Math.random() * 80,
+      speed: 1.5 + Math.random() * 3,
+      alpha: 0.1 + Math.random() * 0.4,
+      color: Math.random() < 0.5 ? '#29e0e6' : (Math.random() < 0.5 ? '#ff8c1a' : '#fff'),
+    };
+  }
+  let titleScanY = 0;
+
   function renderTitleScene() {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
+
+    // 背景グラデーション
+    const grad = ctx.createRadialGradient(W * 0.6, H * 0.4, 0, W * 0.6, H * 0.4, W * 0.7);
+    grad.addColorStop(0,   'rgba(0,30,40,0.9)');
+    grad.addColorStop(0.5, 'rgba(0,10,20,0.6)');
+    grad.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // エネルギーストリーク
+    for (const s of titleStreaks) {
+      ctx.save();
+      ctx.globalAlpha = s.alpha * (0.6 + 0.4 * Math.sin(performance.now() / 600 + s.x));
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x - s.len, s.y + s.len * 0.3);
+      ctx.stroke();
+      ctx.restore();
+      s.x += s.speed;
+      s.y -= s.speed * 0.2;
+      if (s.x > W + 20 || s.y < -20) {
+        Object.assign(s, makeTitleStreak());
+        s.x = -s.len;
+        s.y = Math.random() * H;
+      }
+    }
+
     drawStars();
+
+    // スキャンライン効果
+    titleScanY = (titleScanY + 1.2) % H;
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = '#29e0e6';
+    ctx.fillRect(0, titleScanY, W, 2);
+    ctx.globalAlpha = 0.06;
+    ctx.fillRect(0, (titleScanY + 60) % H, W, 1);
+    ctx.restore();
+
+    // スキャンライン (全体に薄く)
+    ctx.save();
+    ctx.globalAlpha = 0.04;
+    ctx.fillStyle = '#000';
+    for (let y = 0; y < H; y += 4) ctx.fillRect(0, y, W, 2);
+    ctx.restore();
+
     drawCourt();
     drawCatapult();
+
+    // 下部グラデーションマスク (UIとのなじみ)
+    const fade = ctx.createLinearGradient(0, H * 0.55, 0, H);
+    fade.addColorStop(0, 'rgba(0,0,0,0)');
+    fade.addColorStop(1, 'rgba(0,0,0,0.82)');
+    ctx.fillStyle = fade;
+    ctx.fillRect(0, 0, W, H);
   }
 
   // 星
@@ -1555,84 +1625,137 @@
     ctx.fillText(text, x, y);
   }
 
-  // ===== UME ダイアログ =====
+  // ===== UME ダイアログ (ジョジョ口調) =====
   const DIALOGUE_LINES = {
     1: [
-      'やった。',
+      '……やったぞ。',
       '1位だ。',
-      'でも、なんだろう。',
-      'うれしいより先に、静かな気持ちがある。',
-      'ここまで来るのに、何度外したか。',
-      'それを覚えているから、この場所の重さがわかる。',
-      '次も、ここに立てるとは限らない。',
-      'だから今日は、ちゃんと受け取っておこう。',
+      'だが、おれは今、妙な気分でいる。',
+      '勝利の高揚よりも先に、静けさが来た。',
+      'これは一体、何なんだ……？',
+      'あの瞬間を思い出せ。',
+      '風が吹いた。ゴールが揺れた。',
+      'それでも、おれの手は迷わなかった。',
+      '「覚悟」というやつが、あの一投に宿っていたんだ！',
+      '何度外した？　何度くじけそうになった？',
+      'そのすべてが、今日のこの場所に繋がっている。',
+      '次にここに立てるかどうか、それはわからない。',
+      'だが……今日、ここに立ったという事実は、',
+      '誰にも、何にも、消すことはできない！',
+      'しっかり受け取っておけ。これは、お前が掴んだものだ。',
     ],
     2: [
-      '2位か。',
-      '惜しかった。本当に、惜しかった。',
-      'でも負けたわけじゃない。',
-      '自分なりに、精いっぱいやった。',
-      '1位との差は小さい。',
-      'その差を、悔しいと思えるうちは、まだ伸びられる。',
-      '次は、その小さな差を埋めにいこう。',
-      '今日の惜しさを、燃料にして。',
+      '2位か……。',
+      '惜しかった。本当に、惜しかったぞ。',
+      'あの最終ショット……あそこで決まっていたら。',
+      '何度もその瞬間が、頭の中で再生される。',
+      'だが待て。よく考えろ。',
+      '「悔しい」と思えるのは、本気でぶつかった証拠だ！',
+      '投げやりな者に、悔しさは宿らない。',
+      '1位との差は、紙一重だった。',
+      'その差を生んだのは、どの一投だったんだ？',
+      '風を読み違えた、あの場面か。',
+      'ゴールが動き出してから、わずかに焦ったあの瞬間か。',
+      '見えているか？　それが見えているうちは、まだ伸びられる。',
+      '今日の悔しさを、無駄にするな。',
+      'それを燃料にして、次の投球に臨め！',
     ],
     3: [
       '3位。',
       '表彰台に立った。',
-      '前回の4位から、ひとつ上がった。',
-      '小さな一歩に見えるかもしれない。',
-      'でも、その一歩を踏み出すのが、いちばん難しい。',
-      'やれば変われる。',
-      'それを証明できた日だ。',
+      'この景色……4位のときとは、確かに違う。',
+      '空気の質が、一段上がった気がする。',
+      '緑ボールを狙いにいったのは、正しい判断だった。',
+      'リスクを恐れて黄色だけを投げていたら、ここには来られなかったはずだ。',
+      '小さな一歩かもしれない。',
+      'だがな、その一歩を踏み出す勇気こそが、いちばん難しいんだ！',
+      '怖くてもやってみる。',
+      'その繰り返しが、人間を前に進める。',
+      'やれば変われる。今日、それを証明した。',
+      'ならば次は、もう一段上を狙えるはずだ。',
+      'お前にはその力がある。おれが保証する。',
     ],
     4: [
-      'また4位だ。',
-      '前回と同じ場所に立っている。',
-      '悪い結果じゃない。',
-      'でも、同じ場所に立ち続けることを、自分はどう思う？',
+      '4位か。',
+      'ちょうど中間地点……絶妙に難しい場所だ。',
+      'トップも遠く、最下位も遠い。',
+      'そのどちらの緊張感も、少しずつ薄れてしまう。',
+      'これが、「4位の罠」というやつだ。',
+      '今日の投球を、正直に振り返ってみろ。',
+      '攻めるべき場面で、無意識に守りに入っていなかったか？',
+      '緑ボールを狙えるのに、黄色を選んだ瞬間。',
+      'その選択が、今日のここを決めたのかもしれない。',
       '満足しているなら、それでいい。',
-      'もっと上に行きたいなら、何かを変える必要がある。',
-      '答えは、自分の中にある。',
+      'だが、もっと上に行きたいなら……何かを変えろ！',
+      '答えはすでに、お前の中にある。',
+      '次の一投で、たった一つだけ変えてみろ。それでいい。',
     ],
     5: [
       '5位か。',
-      '前回より、少し後ろだ。',
-      '落ち込みそうになる。',
-      'でも、一度下がることを恐れていたら、何もできない。',
-      '失敗は情報だ。',
-      '何がうまくいかなかったか、きっと見えているはずだ。',
-      '次の一投から、立て直せばいい。',
+      '前半は、悪くなかった。それは認める。',
+      'だがゴールが動き出してから、リズムが崩れた。',
+      '風向きが変わった瞬間、対応が一テンポ遅れた。',
+      'そういった小さなズレが積み重なり、ここになった。',
+      '落ち込みたい気持ちはわかる。おれにもそれはある。',
+      'だがな……一度下がることを恐れていたら、何もできないぞ！',
+      '失敗は情報だ。敵ではない。',
+      'どこで判断を誤ったか、今ならはっきり見えているはずだ。',
+      'それを次に持ち込めるなら、今日は負けじゃない。',
+      'ストリークが途切れたあの一投……',
+      '次は、そこで踏ん張る。それだけでいい。',
+      '一投ずつ、立て直していけばいい。',
     ],
     6: [
       '6位。',
-      '思うようにいかなかった。',
-      'ごまかしたくなる気持ちもある。',
-      'でも、ちゃんと見ておこう。',
-      'うまくいかなかった場所を、目をそらさずに。',
-      'そこから逃げない人間だけが、次に進める。',
-      '今日は、その覚悟を持つ日にしよう。',
+      '思うようにいかなかった……。',
+      'ゴールを見ていたはずなのに、手が合わなかった。',
+      'あの感覚、言葉にするのが難しい。',
+      'ごまかしたくなる気持ちはわかる。',
+      '「今日は調子が悪かっただけだ」と言えば、楽になれる。',
+      'だが……それでいいのか？',
+      '風の読み方が雑だった場面。',
+      'パワーを焦って上げすぎた投球。',
+      'ストリークを守ろうとして、かえって体が固まった瞬間。',
+      'うまくいかなかった場所を、目をそらさずに見ろ。',
+      'そこから逃げない者だけが、次のステージへ進める！',
+      '今日は、その覚悟を持つ日だ。',
+      'これは終わりじゃない。通過点だ。',
     ],
     7: [
       '7位。',
-      '今日は崩れた。',
-      '思い通りにいかないことが、重なった。',
-      'そういう日がある。',
-      'それは弱さじゃなくて、試されている時間だと思う。',
-      '崩れた日は、基礎に戻るチャンスだ。',
-      '焦らず、一つずつ積み上げ直そう。',
-      '次は、もう少しうまくやれる。',
+      '今日は崩れた……完全に崩れた。',
+      '投げるたびに、何かがちぐはぐだった。',
+      '緑ボールを外したとき、気持ちに罅が入った。',
+      'そこからのリカバリーができなかった。',
+      '思い通りにいかないことが、次々と重なった。',
+      'そういう日はある。誰にでも、必ずある。',
+      '完璧な日だけが、本当の自分じゃない。',
+      'こういう日も……お前だ。否定するな。',
+      'これは弱さではない。試されている時間だ。',
+      '崩れた日は、基礎に戻るチャンスだと思え！',
+      'アングルの確認。パワーの感覚。',
+      '風を読む、その一秒の間。',
+      'ひとつひとつ、積み上げ直していけばいい。',
+      '次は、もう少しうまくやれる。それは確かだ。',
     ],
     8: [
       '8位。',
       '最下位だ。',
-      'これは、きつい。',
-      '正直、悔しいを通り越して、しばらく何も考えたくなる。',
-      'でも、最下位には、最下位にしか見えない景色がある。',
-      'ここから上がるしかない、という、ある種の自由だ。',
+      '……きつい。本当に、きつい。',
+      '悔しいを通り越して、しばらく何も考えたくなる。',
+      'ゴールが動き出したとき、頭の中が真っ白になった。',
+      '風を読む余裕など、まるでなかった。',
+      'それでも……10投、すべて投げた。',
+      '途中で腕を止めなかった。',
+      'その事実だけは、誰にも消せない！',
+      '最下位には、最下位にしか見えない景色がある。',
+      'ここから上がるしかない……という、ある種の自由だ。',
       '失うものは、もうない。',
-      '次は、なりふり構わずやってみよう。',
-      'ここが、スタートだ。',
+      'ならば次は、なりふり構わずやってみろ！',
+      '緑ボールを全部狙いにいけ。',
+      'ストリークなど気にするな。',
+      'ただ、ゴールだけを見ろ。',
+      'ここが……スタートラインだ。',
     ],
   };
 
@@ -1842,11 +1965,43 @@
   const ENEMY_TURN_MS = 6500;
 
   const ACTIONS = ['fight', 'act', 'item', 'mercy'];
+
+  // ACT使用回数ごとのセリフ (Undertale風 * 記法)
   const ACT_LINES = [
-    'むこうも こちらを にらんでいる。',
-    'カタパルトに ホコリを みとめた。',
-    'すこし こきゅうを ととのえる。',
-    '自分の影に 重なるような 視線。',
+    '* むこうも こちらを じっと にらんでいる。',
+    '* カタパルトに うっすら ホコリが つもっている。',
+    '* ゆっくり こきゅうを ととのえた。',
+    '* 自分の影が、もう一人の自分に 重なりそうだ。',
+    '* 目を 閉じると、あの投球の感触が 残っている。',
+    '* 風の音が、少し 遠くなった気がした。',
+    '* むこうが、わずかに たじろいだ。',
+    '* 自分の中の 何かが、静かに 溶けていく。',
+  ];
+
+  // ラウンド別 敵フレーバーテキスト (Undertale風)
+  const ENEMY_FLAVOR = [
+    '* もう一人の自分が 立ちふさがった！',
+    '* 鏡の向こうから にらみ返してくる。',
+    '* 同じ声で、「負けるな」と 言っている。',
+    '* 逃げることはできない。これは自分自身との戦いだ。',
+    '* 本気を、見せてやる。',
+    '* まだ終わらない。お前は本当に 諦めないのか？',
+  ];
+
+  // MERCY成功時・失敗時の敵セリフ
+  const MERCY_REFUSE = [
+    '* まだだ。お前の 覚悟が 見えない。',
+    '* …本気か？ まだ ACTが 足りない。',
+    '* もっと 自分を さらけ出せ。',
+  ];
+
+  // 敵ターン開始時セリフ
+  const ENEMY_ATTACK_LINES = [
+    '* むこうが 動いた！',
+    '* 攻撃が はじまる！',
+    '* 全力で 来るぞ！',
+    '* お前の 心を 狙ってくる！',
+    '* 受け止めてみろ！',
   ];
 
   const DODGE = {
@@ -1866,6 +2021,8 @@
     itemsLeft: 3,
     realFormUsed: false,
     realFormActive: false,
+    actCount: 0,       // ACT使用回数 (MERCY成功条件に使用)
+    mercyReady: false, // ACT3回でMERCY成功可能フラグ
     msg: '', msgUntil: 0,
     active: false,
   };
@@ -1891,6 +2048,8 @@
     DODGE.itemsLeft = 3;
     DODGE.realFormUsed = false;
     DODGE.realFormActive = false;
+    DODGE.actCount = 0;
+    DODGE.mercyReady = false;
     DODGE.heart = { x: DBOX.x + DBOX.w / 2, y: DBOX.y + DBOX.h / 2 };
     DODGE.fight.active = false;
     DODGE.menu.mode = 'menu'; DODGE.menu.index = 0;
@@ -1918,18 +2077,27 @@
     DODGE.phaseTime = performance.now();
 
     if (p === 'intro') {
-      setDodgeMsg('もう一人の自分が現れた…', 1500);
+      const flavor = ENEMY_FLAVOR[0];
+      setDodgeMsg(flavor, 1800);
     } else if (p === 'player') {
       DODGE.menu.mode = 'menu';
       DODGE.menu.index = 0;
       DODGE.fight.active = false;
       DODGE.fight.locked = false;
+      // プレイヤーターン開始時: 現在のラウンドに応じたフレーバー表示
+      const flavorIdx = Math.min(DODGE.round, ENEMY_FLAVOR.length - 1);
+      if (DODGE.round >= 1) {
+        setDodgeMsg(ENEMY_FLAVOR[flavorIdx], 1400);
+      }
     } else if (p === 'enemy') {
       DODGE.round += 1;
       DODGE.bullets = [];
-      DODGE.nextBulletTime = performance.now() + 400;
+      DODGE.nextBulletTime = performance.now() + 500;
       DODGE.heart = { x: DBOX.x + DBOX.w / 2, y: DBOX.y + DBOX.h / 2 };
       AudioManager.play('start');
+      // 敵ターン開始ランダムセリフ
+      const atk = ENEMY_ATTACK_LINES[Math.floor(Math.random() * ENEMY_ATTACK_LINES.length)];
+      setDodgeMsg(atk, 900);
     }
     syncDodgeUI();
   }
@@ -1959,20 +2127,41 @@
     if (act === 'fight') {
       startFightBar();
     } else if (act === 'act') {
-      const line = ACT_LINES[(DODGE.round - 1) % ACT_LINES.length];
-      startActMsg(line, 'enemy');
+      DODGE.actCount += 1;
+      if (DODGE.actCount >= 3 && !DODGE.mercyReady) {
+        DODGE.mercyReady = true;
+      }
+      const line = ACT_LINES[(DODGE.actCount - 1) % ACT_LINES.length];
+      let suffix;
+      if (DODGE.mercyReady) {
+        suffix = '\n★ MERCYが つかえるようになった！';
+      } else {
+        suffix = `  [${DODGE.actCount}/3]`;
+      }
+      startActMsg(line + suffix, 'enemy');
     } else if (act === 'item') {
       if (DODGE.itemsLeft > 0) {
         const heal = 3;
         DODGE.hp = Math.min(DODGE.maxHp, DODGE.hp + heal);
         DODGE.itemsLeft -= 1;
         AudioManager.play('green');
-        startActMsg('HPが ' + heal + ' かいふくした!', 'enemy');
+        startActMsg('* HPが ' + heal + ' かいふくした！　ほっとする。', 'enemy');
       } else {
-        startActMsg('アイテムが ない…', 'enemy');
+        startActMsg('* ポケットをさぐったが、何も なかった。', 'enemy');
       }
     } else if (act === 'mercy') {
-      startActMsg('まだ ふみこんでこない…', 'enemy');
+      if (DODGE.mercyReady) {
+        // MERCY成功: バトル終了
+        setDodgeMsg('* …そうか。今日はここまでに しておいてやる。', 1800);
+        AudioManager.play('super');
+        flashAlpha = 0.5; flashColor = '124,252,0';
+        triggerShake(10, 5);
+        setTimeout(() => { if (DODGE.active) endDodgeBattle('win'); }, 1800);
+      } else {
+        const ref = MERCY_REFUSE[Math.floor(Math.random() * MERCY_REFUSE.length)];
+        const remaining = 3 - DODGE.actCount;
+        startActMsg(ref + `  (ACTあと${remaining}回)`, 'enemy');
+      }
     }
   }
 
@@ -2041,7 +2230,7 @@
     else dmg = Math.round(lerp(34, 8, ad));
     DODGE.oppHp = Math.max(0, DODGE.oppHp - dmg);
     DODGE.oppShake = 12; DODGE.oppFlash = 10;
-    setDodgeMsg((crit ? 'CRITICAL! ' : '') + '-' + dmg, 1000);
+    setDodgeMsg((crit ? '* クリティカル！　' : '* ') + dmg + ' のダメージ！', 1000);
     AudioManager.play(crit ? 'super' : 'swish');
     if (crit) {
       flashAlpha = 0.4; flashColor = '255,235,59';
@@ -2063,7 +2252,7 @@
           triggerShake(22, 10);
           AudioManager.play('super');
           flashAlpha = 0.55; flashColor = '255,80,80';
-          setDodgeMsg('まだだ… ホンキを みせてやる!', 1400);
+          setDodgeMsg('* …まだだ。これが、本当の 自分だ！', 1600);
           setTimeout(() => { if (DODGE.active) enterBattlePhase('enemy'); }, 1400);
         } else {
           endDodgeBattle('win');
@@ -2326,125 +2515,4 @@
     pixelText('LV ' + DODGE.lv, cx - 150, y, 9, '#fff', 'left');
     pixelText('HP', cx - 78, y, 9, '#fff', 'left');
     const barX = cx - 50, barY = y - 1;
-    ctx.fillStyle = '#7a0000'; ctx.fillRect(barX, barY, barW, barH);
-    const fillW = Math.max(0, Math.round(barW * DODGE.hp / DODGE.maxHp));
-    ctx.fillStyle = '#ffeb3b'; ctx.fillRect(barX, barY, fillW, barH);
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-    ctx.strokeRect(barX + 0.5, barY + 0.5, barW, barH);
-    pixelText(DODGE.hp + ' / ' + DODGE.maxHp, barX + barW + 10, y, 9, '#fff', 'left');
-    // ROUND / ITEM 残数 (左右端の補助情報)
-    pixelText('ROUND ' + Math.max(1, DODGE.round), left + 8, y, 7, '#7cfc00', 'left');
-    pixelText('ITEM x' + DODGE.itemsLeft, DBOX.x + DBOX.w - 8, y, 7, '#ff8c00', 'right');
-  }
-
-  function renderDodge() {
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, W, H);
-    const sh = getShakeOffset();
-    ctx.save();
-    ctx.translate(sh.x, sh.y);
-    drawDodgeGrid();
-    drawStars();
-
-    // 相手(鏡の自分) - グリッド中央寄り上部
-    const oppX = W / 2 + (DODGE.oppShake > 0 ? (Math.random() - 0.5) * 8 : 0);
-    const oppColor = DODGE.realFormUsed ? '#ff6464' : (DODGE.oppFlash > 0 ? '#fff' : '#f0f0f0');
-    drawDodgeHeart(oppX, 90, oppColor, false);
-    const barW = 200, barX = W / 2 - barW / 2, barY = 130;
-    pixelText(DODGE.realFormActive ? 'ENEMY!' : 'ENEMY', barX, barY - 12, 7,
-              DODGE.realFormActive ? '#ff6464' : '#f0f0f0', 'left');
-    ctx.fillStyle = '#333'; ctx.fillRect(barX, barY, barW, 8);
-    ctx.fillStyle = DODGE.realFormActive ? '#ff5252' : '#f0f0f0';
-    ctx.fillRect(barX, barY, barW * (DODGE.oppHp / DODGE.oppHpMax), 8);
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(barX + 0.5, barY + 0.5, barW, 8);
-
-    // バトルボックス
-    const b = DBOX;
-    ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(b.x, b.y, b.w, b.h);
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.strokeRect(b.x, b.y, b.w, b.h);
-
-    if (DODGE.battlePhase === 'enemy') {
-      renderDodgeBullets();
-      drawDodgeHeart(DODGE.heart.x, DODGE.heart.y, '#e61c3b', DODGE.invincible > 0);
-    } else if (DODGE.battlePhase === 'player' || DODGE.battlePhase === 'intro') {
-      drawDodgeHeart(DODGE.heart.x, DODGE.heart.y, '#e61c3b', false);
-    }
-
-    // 自分のLV / HP (Undertale風)
-    drawDodgeHud(b.x, b.y + b.h + 12);
-
-    // FIGHT バー
-    if (DODGE.battlePhase === 'player' && DODGE.fight.active) {
-      const gy = b.y + b.h + 38, gx = b.x + 10, gw = b.w - 20;
-      ctx.fillStyle = '#222'; ctx.fillRect(gx, gy, gw, 12);
-      const center = b.x + b.w / 2, sw = gw * 0.08;
-      ctx.fillStyle = '#ffeb3b'; ctx.fillRect(center - sw, gy, sw * 2, 12);
-      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(gx + 0.5, gy + 0.5, gw, 12);
-      ctx.fillStyle = '#fff'; ctx.fillRect(DODGE.fight.markerX - 1, gy - 3, 3, 18);
-    }
-
-    // メッセージ
-    if (DODGE.msg && performance.now() < DODGE.msgUntil) {
-      pixelText(DODGE.msg, W / 2, b.y - 34, 10, '#fff', 'center');
-    }
-
-    ctx.restore();
-
-    if (flashAlpha > 0) {
-      ctx.fillStyle = `rgba(${flashColor},${flashAlpha})`;
-      ctx.fillRect(0, 0, W, H);
-    }
-    drawBorder();
-  }
-
-  function endDodgeBattle(outcome) {
-    if (!DODGE.active) return;
-    DODGE.active = false;
-    DODGE.outcome = outcome;
-    DODGE.battlePhase = outcome;
-    DODGE.bullets = [];
-    syncDodgeUI();
-    AudioManager.stopBgm();
-    if (outcome === 'win') {
-      AudioManager.play('super');
-      flashAlpha = 0.5; flashColor = '255,255,255';
-      setDodgeMsg('…今日のお前には、敵わないな', 1600);
-    } else {
-      AudioManager.play('miss');
-      setDodgeMsg('まだだ。ここから越えてみせろ', 1600);
-    }
-    setTimeout(showDodgeResult, 1200);
-  }
-
-  function showDodgeResult() {
-    const win = DODGE.outcome === 'win';
-    const outEl = document.getElementById('dodge-res-outcome');
-    const storyPrefix = (storyMode && win) ? '★ STORY CLEAR ★ ' : '';
-    outEl.textContent = storyPrefix + (win ? 'YOU WIN' : 'YOU LOSE');
-    outEl.style.color = win ? '#7cfc00' : '#ff5252';
-    if (storyMode && win) localStorage.setItem('mhsc_story_clear', '1');
-    document.getElementById('dodge-res-rounds').textContent = String(Math.max(1, DODGE.round));
-
-    const stars = Math.round(DODGE.difficulty * 5);
-    document.getElementById('dodge-res-diff').textContent = '★'.repeat(stars) + '☆'.repeat(5 - stars);
-
-    let isNew = false;
-    if (win) {
-      const prev = parseInt(localStorage.getItem('mhsc_dodge_best') || '0', 10);
-      if (prev === 0 || DODGE.round < prev) {
-        localStorage.setItem('mhsc_dodge_best', String(DODGE.round));
-        isNew = true;
-      }
-    }
-    document.getElementById('dodge-new-record').style.display = isNew ? 'block' : 'none';
-
-    AudioManager.playFileBgm('DANDAN.m4a', 0.55);
-    switchScreen(STATE.DODGE_RESULT);
-  }
-
-  // ===== 起動 =====
-  switchScreen(STATE.TITLE);
-  requestAnimationFrame(loopRaf);
-  // rAFが止まる(非表示タブ等)場合の保険
-  setInterval(loopOnce, 50);
-})();
+    ctx.fillStyle = '#7a0000'; ctx.fillRect(barX, barY, barW, barH)
