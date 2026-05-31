@@ -1000,6 +1000,7 @@
   // ===== 描画 =====
   function render() {
     if (currentState === STATE.DODGE) { renderDodge(); return; }
+    if (currentState === STATE.TITLE) { renderTitleScene(); return; }
     if (currentState !== STATE.GAME) return;
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
@@ -1022,6 +1023,14 @@
       ctx.fillRect(0, 0, W, H);
     }
     drawBorder();
+  }
+
+  function renderTitleScene() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    drawStars();
+    drawCourt();
+    drawCatapult();
   }
 
   // 星
