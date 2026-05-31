@@ -2640,6 +2640,7 @@
     if (!rotateOverlay) return;
     const portrait = window.innerHeight > window.innerWidth;
     rotateOverlay.classList.toggle('show', portrait);
+    document.body.classList.toggle('portrait', portrait);
   }
   window.addEventListener('resize', checkOrientation);
   window.addEventListener('orientationchange', checkOrientation);

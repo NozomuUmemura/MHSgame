@@ -680,13 +680,18 @@ body { display: flex; justify-content: center; align-items: center; }
 #rotate-overlay {
   display: none;
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   background: #000;
   z-index: 9999;
   justify-content: center;
   align-items: center;
   text-align: center;
 }
+/* 縦向きのときはゲーム本体を隠してオーバーレイだけ見せる */
+body.portrait #game-wrapper { display: none; }
 .rotate-content {
   display: flex;
   flex-direction: column;
