@@ -2218,6 +2218,26 @@
     });
   })();
 
+  // FIGHTバーのロック: スマホにはキーボードが無いので、戦闘エリア(キャンバス)の
+  // タップ/クリックでも「決定」できるようにする。screen-dodge は pointer-events:none
+  // なので、タップはその下のキャンバスに届く。
+  function dodgeTapStrike(ev) {
+    if (currentState !== STATE.DODGE) return;
+    if (DODGE.battlePhase === 'player' && DODGE.menu.mode === 'fight' &&
+        DODGE.fight.active && !DODGE.fight.locked) {
+      ev.preventDefault();
+      resolveFightHit();
+    }
+  }
+  canvas.addEventListener('touchstart', dodgeTapStrike, { passive: false });
+  canvas.addEventListener('mousedown', dodgeTapStrike);
+  // 下部HUDの空き領域(FIGHT中はボタン非表示)タップでも決定できるように
+  const dodgeHudEl = document.getElementById('dodge-hud');
+  if (dodgeHudEl) {
+    dodgeHudEl.addEventListener('touchstart', dodgeTapStrike, { passive: false });
+    dodgeHudEl.addEventListener('mousedown', dodgeTapStrike);
+  }
+
   function resolveFightHit() {
     const f = DODGE.fight;
     f.locked = true;
@@ -2225,8 +2245,9 @@
     const center = DBOX.x + DBOX.w / 2;
     const half = (DBOX.w - 20) / 2;
     const ad = Math.min(1, Math.abs(f.markerX - center) / half);
+    // クリティカル帯は画面に出る黄色スイートスポット(中心±8%幅 = ad<0.16)と一致させる
     let dmg, crit = false;
-    if (ad < 0.08) { dmg = 40; crit = true; }
+    if (ad < 0.16) { dmg = 40; crit = true; }
     else dmg = Math.round(lerp(34, 8, ad));
     DODGE.oppHp = Math.max(0, DODGE.oppHp - dmg);
     DODGE.oppShake = 12; DODGE.oppFlash = 10;
@@ -2570,6 +2591,7 @@
       ctx.fillStyle = '#ffeb3b'; ctx.fillRect(center - sw, gy, sw * 2, 12);
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(gx + 0.5, gy + 0.5, gw, 12);
       ctx.fillStyle = '#fff'; ctx.fillRect(DODGE.fight.markerX - 1, gy - 3, 3, 18);
+      pixelText('TAP / SPACE!', b.x + b.w / 2, gy + 16, 7, '#ffeb3b', 'center');
     }
 
     // メッセージ
