@@ -27,11 +27,8 @@
         <div class="title-divider"><span class="title-divider-line"></span><span class="title-divider-diamond">◆</span><span class="title-divider-line"></span></div>
         <p class="title-blink">▶ PRESS START</p>
         <div class="title-buttons">
-          <button class="title-btn" id="btn-story">
-            <span class="title-btn-arrow">▶</span>STORY MODE
-          </button>
           <button class="title-btn" id="btn-free">
-            <span class="title-btn-arrow">▶</span>FREE PLAY
+            <span class="title-btn-arrow">▶</span>GAME START
           </button>
           <button class="title-btn title-btn-red" id="btn-dodge" style="display:none;">
             <span class="title-btn-arrow">▶</span>自分との闘い
@@ -106,6 +103,17 @@
         <div class="result-buttons">
           <button class="ui-button" id="btn-retry">RETRY</button>
           <button class="ui-button" id="btn-back-title">TITLE</button>
+        </div>
+      </div>
+
+      <!-- 自分との闘い 誘導ポップアップ -->
+      <div id="battle-prompt" class="modal-overlay hidden">
+        <div class="modal-box">
+          <p class="modal-title pixel-jp">自分との闘いに<br>挑みますか？</p>
+          <div class="modal-buttons">
+            <button class="ui-button" id="battle-prompt-yes">はい</button>
+            <button class="ui-button" id="battle-prompt-no">いいえ</button>
+          </div>
         </div>
       </div>
     </div>

@@ -392,7 +392,7 @@
     if (state === STATE.TITLE) { updateBestScoreDisplay(); updateDodgeButtonVisibility(); }
     if      (state === STATE.TITLE)        AudioManager.playBgm('title');
     else if (state === STATE.GAME)         AudioManager.playBgm('game');
-    else if (state === STATE.DODGE)        AudioManager.playFileBgm('tenshi.m4a', 0.5);
+    else if (state === STATE.DODGE)        AudioManager.playFileBgm('tenshi.m4a', 1.0);
     else if (state === STATE.DODGE_RESULT) { /* BGM は showDodgeResult() で管理 */ }
     const map = {
       [STATE.TITLE]:        'screen-title',
@@ -405,17 +405,9 @@
   }
 
   // ===== タイトル → ゲーム =====
-  let storyMode = false;
-  document.getElementById('btn-story').addEventListener('click', () => {
-    AudioManager.init();
-    AudioManager.play('start');
-    storyMode = true;
-    startGame();
-  });
   document.getElementById('btn-free').addEventListener('click', () => {
     AudioManager.init();
     AudioManager.play('start');
-    storyMode = false;
     startGame();
   });
 
@@ -441,6 +433,7 @@
   function startGame() {
     clearSettleTimer();
     resetDialogue();
+    hideBattlePrompt();
     player.shot   = 0;
     player.score  = 0;
     player.streak = 0;
@@ -603,7 +596,6 @@
         e.preventDefault();
         if (!e.repeat) {
           AudioManager.play('start');
-          storyMode = false;
           startGame();
         }
       }
@@ -1317,168 +1309,171 @@
     }
   }
 
-  // ---------- 投石器 ----------
+  // ---------- 投石機 (トーション式オナガー) ----------
   function drawCatapult() {
     const baseY = COURT.floorY;
     const cx    = LAUNCHER.x;
     const now   = performance.now();
-    const glow  = 0.55 + 0.45 * Math.sin(now / 300);   // 関節/クランプ脈動
     const since = now - lastFireTime;
     const recoil = since < 220 ? (1 - since / 220) : 0; // 1→0 減衰
-    const dx = -8 * recoil;                             // 発射で後方(左)へキック
+    const dx = -7 * recoil;                             // 発射で後方(左)へキック
+    const bx = cx + dx;
 
     // 影
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(cx - 60, baseY - 2, 120, 4);
+    ctx.fillRect(cx - 58, baseY - 2, 116, 4);
 
-    // 走行部(装甲ホイール)
-    drawMechaWheel(cx - 40 + dx, baseY - 7, 10, glow);
-    drawMechaWheel(cx + 40 + dx, baseY - 7, 10, glow);
+    // 木製ホイール + 車軸
+    drawWoodWheel(bx - 36, baseY - 9, 11);
+    drawWoodWheel(bx + 38, baseY - 9, 11);
+    ctx.fillStyle = '#3a2614'; ctx.fillRect(bx - 40, baseY - 11, 80, 4);
 
-    // 基部シャーシ
-    const sx = cx - 50 + dx, sy = baseY - 30, sw = 100, sh = 22;
-    ctx.fillStyle = '#2b3038'; ctx.fillRect(sx, sy, sw, sh);
-    ctx.fillStyle = '#3a4250'; ctx.fillRect(sx, sy, sw, sh - 3);
-    ctx.fillStyle = '#566073'; ctx.fillRect(sx, sy, sw, 2);
-    ctx.fillStyle = '#20252c'; ctx.fillRect(sx, sy + sh - 3, sw, 3);
-    ctx.fillStyle = '#20252c'; ctx.fillRect(sx + sw * 0.42, sy + 3, 1, sh - 8);
-    // 警告ストライプ
-    for (let i = 0; i < 5; i++) {
-      ctx.fillStyle = (i % 2 === 0) ? '#ff8c1a' : '#20252c';
-      ctx.fillRect(sx + 8 + i * 7, sy + sh - 8, 5, 4);
-    }
+    // 基部フレーム (木の土台 + 前後の脚ブロック)
+    drawWoodBeam(bx - 46, baseY - 26, 94, 12);
+    drawWoodBeam(bx - 40, baseY - 40, 14, 18);
+    drawWoodBeam(bx + 26, baseY - 40, 14, 18);
 
-    // ピボット支柱(2本) + 油圧ピストン
-    const pivotX = cx + dx;
-    const pivotY = baseY - 60;
-    drawMechaStrut(cx - 22 + dx, sy, pivotX - 3, pivotY);
-    drawMechaStrut(cx + 22 + dx, sy, pivotX + 3, pivotY);
-    drawMechaPiston(cx - 30 + dx, sy + 4, pivotX - 6, pivotY + 6, glow);
-    drawMechaPiston(cx + 30 + dx, sy + 4, pivotX + 6, pivotY + 6, glow);
+    // ピボット(ねじり縄バネ束)の位置
+    const pivotX = bx + 2;
+    const pivotY = baseY - 46;
 
-    // ピボット関節(発光)
-    ctx.fillStyle = '#20252c'; ctx.fillRect(pivotX - 7, pivotY - 7, 14, 14);
-    ctx.fillStyle = '#3a4250'; ctx.fillRect(pivotX - 5, pivotY - 5, 10, 10);
-    ctx.fillStyle = `rgba(41,224,230,${glow})`; ctx.fillRect(pivotX - 3, pivotY - 3, 6, 6);
-    ctx.fillStyle = '#bff7fa'; ctx.fillRect(pivotX - 1, pivotY - 1, 2, 2);
+    // A字の斜め支柱 (土台 → ピボット)
+    drawDiagPlank(bx - 30, baseY - 24, pivotX - 8, pivotY + 2, 6, '#6b4a2b', '#8a6238', '#4a3119');
+    drawDiagPlank(bx + 34, baseY - 24, pivotX + 8, pivotY + 2, 6, '#6b4a2b', '#8a6238', '#4a3119');
 
-    // メカアーム
-    const armLen = 78;
-    const ang    = player.angleDeg * Math.PI / 180;
+    // 前方の受け止め梁 (アームが当たる緩衝バー)
+    drawWoodBeam(bx + 30, baseY - 52, 10, 12);
+    ctx.fillStyle = '#caa15a'; ctx.fillRect(bx + 30, baseY - 54, 10, 3);
+
+    // ねじり縄バネ束 (横ドラム、回転しない)
+    drawTorsionDrum(pivotX, pivotY, now);
+
+    // ===== アーム (回転) =====
+    const armLen = 80;
+    // 発射時はアームが前方(上)へ跳ね上がる
+    const ang = player.angleDeg * Math.PI / 180 + recoil * 0.4;
     ctx.save();
     ctx.translate(pivotX, pivotY);
     ctx.rotate(-ang);
 
-    // カウンターウェイト(後方)
-    ctx.fillStyle = '#20252c'; ctx.fillRect(-30, -9, 22, 18);
-    ctx.fillStyle = '#3a4250'; ctx.fillRect(-30, -9, 22, 4);
-    ctx.fillStyle = `rgba(41,224,230,${glow})`; ctx.fillRect(-26, 1, 14, 2);
+    // 後方の短い尾
+    ctx.fillStyle = '#4a3119'; ctx.fillRect(-16, -4, 16, 8);
 
-    // アーム本体(装甲パネル)
-    ctx.fillStyle = '#2b3038'; ctx.fillRect(0, -5, armLen, 10);
-    ctx.fillStyle = '#3a4250'; ctx.fillRect(0, -5, armLen, 6);
-    ctx.fillStyle = '#566073'; ctx.fillRect(0, -5, armLen, 2);
-    ctx.fillStyle = '#20252c'; ctx.fillRect(0,  3, armLen, 2);
+    // アーム本体 (木の梁)
+    ctx.fillStyle = '#5a3d22'; ctx.fillRect(0, -4, armLen, 8);
+    ctx.fillStyle = '#7a5230'; ctx.fillRect(0, -4, armLen, 3);   // 上ハイライト
+    ctx.fillStyle = '#3a2614'; ctx.fillRect(0,  3, armLen, 1);   // 下シャドウ
+    // 鉄の補強バンド
     for (let i = 1; i <= 3; i++) {
       const jx = i * (armLen / 4);
-      ctx.fillStyle = '#20252c'; ctx.fillRect(jx - 1, -6, 3, 12);
-      ctx.fillStyle = `rgba(41,224,230,${glow * 0.8})`; ctx.fillRect(jx, -1, 1, 2);
+      ctx.fillStyle = '#4a4e57'; ctx.fillRect(jx - 1, -5, 3, 10);
+      ctx.fillStyle = '#7a808a'; ctx.fillRect(jx - 1, -5, 3, 1);
     }
 
-    // 先端 電磁クランプ
+    // 先端のバケット/スリング (ボール受け)
     const tip = armLen;
-    ctx.fillStyle = '#20252c'; ctx.fillRect(tip - 2, -12, 6, 24);
-    ctx.fillStyle = '#3a4250'; ctx.fillRect(tip + 4, -11, 8, 22);
-    ctx.fillStyle = '#566073'; ctx.fillRect(tip + 4, -11, 8, 2);
-    ctx.fillStyle = '#566073'; ctx.fillRect(tip + 12, -11, 4, 5);
-    ctx.fillStyle = '#566073'; ctx.fillRect(tip + 12,   6, 4, 5);
-    ctx.fillStyle = `rgba(41,224,230,${glow})`; ctx.fillRect(tip + 5, -3, 6, 6);
+    ctx.fillStyle = '#3a2614'; ctx.fillRect(tip - 2, -3, 4, 6);
+    ctx.fillStyle = '#4a4e57'; ctx.fillRect(tip + 1, -9, 4, 18);
+    ctx.fillStyle = '#6a6f78'; ctx.fillRect(tip + 1, -9, 4, 2);
+    ctx.fillStyle = '#caa15a';                                   // 縄スリング
+    ctx.fillRect(tip + 2, -10, 10, 2);
+    ctx.fillRect(tip + 2,   8, 10, 2);
 
     if (phase === PHASE.AIM || currentState === STATE.TITLE) {
       drawPixelBall(tip + 8, 0, player.ballColor, true);
     }
     ctx.restore();
 
-    drawCatapultFlag(cx + dx, baseY);
+    drawCatapultFlag(bx, baseY);
   }
 
-  function drawMechaWheel(cx, cy, r, glow) {
-    ctx.fillStyle = '#15181d';
+  function drawWoodWheel(cx, cy, r) {
+    ctx.fillStyle = '#3a2614';
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#566073'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.fillStyle = '#3a4250'; ctx.fillRect(cx - 3, cy - 3, 6, 6);
-    ctx.fillStyle = `rgba(41,224,230,${glow})`; ctx.fillRect(cx - 1, cy - 1, 2, 2);
+    ctx.fillStyle = '#5a3d22';
+    ctx.beginPath(); ctx.arc(cx, cy, r - 2, 0, Math.PI * 2); ctx.fill();
+    // スポーク
+    ctx.strokeStyle = '#3a2614'; ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 4 + 0.4;
+      ctx.beginPath();
+      ctx.moveTo(cx - Math.cos(a) * (r - 2), cy - Math.sin(a) * (r - 2));
+      ctx.lineTo(cx + Math.cos(a) * (r - 2), cy + Math.sin(a) * (r - 2));
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#2a1c0e';
+    ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#7a808a'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
   }
 
-  function drawMechaStrut(x1, y1, x2, y2) {
-    drawDiagPlank(x1, y1, x2, y2, 5, '#3a4250', '#566073', '#20252c');
+  function drawWoodBeam(x, y, w, h) {
+    ctx.fillStyle = '#5a3d22'; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#7a5230'; ctx.fillRect(x, y, w, 2);
+    ctx.fillStyle = '#3a2614'; ctx.fillRect(x, y + h - 2, w, 2);
+    ctx.fillStyle = 'rgba(58,38,20,0.5)';
+    ctx.fillRect(x + 3, y + Math.floor(h / 2), Math.max(0, w - 6), 1);
   }
 
-  function drawMechaPiston(x1, y1, x2, y2, glow) {
-    const dx = x2 - x1, dy = y2 - y1;
-    const len = Math.hypot(dx, dy);
-    const a = Math.atan2(dy, dx);
-    ctx.save();
-    ctx.translate(x1, y1);
-    ctx.rotate(a);
-    const cyl = len * 0.55;
-    ctx.fillStyle = '#20252c'; ctx.fillRect(0, -3, cyl, 6);
-    ctx.fillStyle = '#3a4250'; ctx.fillRect(0, -3, cyl, 5);
-    ctx.fillStyle = '#566073'; ctx.fillRect(0, -3, cyl, 1);
-    ctx.fillStyle = '#9aa3b3'; ctx.fillRect(cyl, -1.5, len - cyl, 3);
-    ctx.fillStyle = `rgba(41,224,230,${glow})`; ctx.fillRect(len - 3, -1, 2, 2);
-    ctx.restore();
+  // ねじり縄バネ束 (機体空間で描画。撚った縄の縞 + 鉄フレーム)
+  function drawTorsionDrum(px, py, now) {
+    const w = 26, h = 22;
+    const x = px - w / 2, y = py - h / 2;
+    // 両端の鉄フレーム
+    ctx.fillStyle = '#3a3e46'; ctx.fillRect(x - 4, y - 3, 4, h + 6);
+    ctx.fillStyle = '#3a3e46'; ctx.fillRect(x + w, y - 3, 4, h + 6);
+    ctx.fillStyle = '#6a6f78'; ctx.fillRect(x - 4, y - 3, 4, 2);
+    ctx.fillStyle = '#6a6f78'; ctx.fillRect(x + w, y - 3, 4, 2);
+    // 縄束 (縦ストランド、明暗で撚りを表現)
+    for (let i = 0; i < w; i += 2) {
+      ctx.fillStyle = ((i / 2) % 2 === 0) ? '#caa15a' : '#a07c40';
+      ctx.fillRect(x + i, y, 2, h);
+    }
+    // 上下の張り出し (張力でわずかに脈動)
+    const wob = Math.max(0, Math.sin(now / 240) * 0.8 + 1);
+    ctx.fillStyle = '#b58e48'; ctx.fillRect(x - 1, y + 1, w + 2, 1 + wob);
+    ctx.fillStyle = '#8a6a34'; ctx.fillRect(x - 1, y + h - 3, w + 2, 2);
+    // 中心軸ピン
+    ctx.fillStyle = '#2a2e34'; ctx.fillRect(px - 2, py - 2, 4, 4);
+    ctx.fillStyle = '#9aa0aa'; ctx.fillRect(px - 1, py - 1, 1, 1);
   }
 
-  // 風向きに応じてなびく旗
+  // 風向きに応じてなびく旗 (機能: 風向き表示)
   function drawCatapultFlag(cx, baseY) {
     const wind = currentWind;
     const t = performance.now() / 150;
-    const flagW = 20;
-    const flagH = 12;
-    // 金属ポール + 発光基部
-    ctx.fillStyle = '#566073';
-    ctx.fillRect(cx - 56, baseY - 60, 2, 38);
-    ctx.fillStyle = '#29e0e6';
-    ctx.fillRect(cx - 57, baseY - 60, 4, 2);
+    const poleX = cx - 52;
+    const poleTop = baseY - 64;
+    const flagW = 20, flagH = 11;
+    // 木のポール
+    ctx.fillStyle = '#5a3d22'; ctx.fillRect(poleX, poleTop, 2, (baseY - 26) - poleTop);
+    ctx.fillStyle = '#7a5230'; ctx.fillRect(poleX, poleTop, 1, (baseY - 26) - poleTop);
+    ctx.fillStyle = '#caa15a'; ctx.fillRect(poleX - 1, poleTop, 4, 2);
 
     if (!wind) {
       ctx.fillStyle = '#b71c1c';
-      ctx.fillRect(cx - 54, baseY - 60, flagW, flagH);
-      pixelText('T4', cx - 44, baseY - 51, 7, '#fff', 'center');
+      ctx.fillRect(poleX + 2, poleTop, flagW, flagH);
+      pixelText('T4', poleX + 12, poleTop + 2, 7, '#fff', 'center');
       return;
     }
 
-    // 風方向に旗が伸びる
     const dir = wind.dir;
-    // 旗のなびき: 各列ごとに波形オフセットを適用
     const cols = 8;
     const colW = flagW / cols;
-    const baseX = (dir > 0) ? cx - 54 : cx - 56 - flagW;
     for (let i = 0; i < cols; i++) {
       const wave = Math.sin(t + i * 0.6) * (1 + wind.level * 0.6);
-      const x = baseX + i * colW * (dir > 0 ? 1 : 1); // 描画は左から右
-      // dir<0なら右端から左端方向にシフトしない (baseXで既に左に開始済み)
-      const y = baseY - 60 + wave;
+      const x = dir > 0 ? poleX + 2 + i * colW : poleX - (i + 1) * colW;
+      const y = poleTop + wave;
       ctx.fillStyle = '#b71c1c';
       ctx.fillRect(x, y, Math.ceil(colW) + 0.5, flagH);
-      if (i === 0) {
-        // 上下のハイライト/シャドウ
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(x, y, Math.ceil(colW) + 0.5, 2);
-        ctx.fillStyle = '#7a0c0c';
-        ctx.fillRect(x, y + flagH - 2, Math.ceil(colW) + 0.5, 2);
-      } else {
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(x, y, Math.ceil(colW) + 0.5, 1);
-        ctx.fillStyle = '#7a0c0c';
-        ctx.fillRect(x, y + flagH - 1, Math.ceil(colW) + 0.5, 1);
-      }
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x, y, Math.ceil(colW) + 0.5, 1);
+      ctx.fillStyle = '#7a0c0c';
+      ctx.fillRect(x, y + flagH - 1, Math.ceil(colW) + 0.5, 1);
     }
-    // T4文字
-    const labelX = dir > 0 ? cx - 44 : cx - 56 - flagW + 10;
-    const labelY = baseY - 60 + Math.sin(t + 1) * (1 + wind.level * 0.6);
-    pixelText('T4', labelX, labelY + 3, 7, '#fff', 'center');
+    const labelX = dir > 0 ? poleX + 12 : poleX - 10;
+    const labelY = poleTop + Math.sin(t + 1) * (1 + wind.level * 0.6);
+    pixelText('T4', labelX, labelY + 2, 7, '#fff', 'center');
   }
 
   function drawDiagPlank(x1, y1, x2, y2, thick, base, hi, sh) {
@@ -1846,13 +1841,30 @@
     dialogue.active = false;
     if (dialogue.typingTimer) clearInterval(dialogue.typingTimer);
     dialogueScene.classList.add('hidden');
-    if (storyMode) {
-      // STORYモード: そのまま「自分との闘い」へ
-      setTimeout(() => { if (storyMode) startDodgeGame(); }, 500);
-      return;
-    }
     resultSummary.classList.remove('hidden');
+    // 結果表示後、「自分との闘い」に挑むか確認するポップアップを出す
+    showBattlePrompt();
   }
+
+  // ===== 自分との闘い 誘導ポップアップ =====
+  const battlePrompt = document.getElementById('battle-prompt');
+  function showBattlePrompt() {
+    if (battlePrompt) battlePrompt.classList.remove('hidden');
+  }
+  function hideBattlePrompt() {
+    if (battlePrompt) battlePrompt.classList.add('hidden');
+  }
+  const battleYes = document.getElementById('battle-prompt-yes');
+  const battleNo  = document.getElementById('battle-prompt-no');
+  if (battleYes) battleYes.addEventListener('click', () => {
+    AudioManager.play('start');
+    hideBattlePrompt();
+    startDodgeGame();
+  });
+  if (battleNo) battleNo.addEventListener('click', () => {
+    AudioManager.play('select');
+    hideBattlePrompt();
+  });
 
   // 会話シーン全体をクリック/タッチで進める
   dialogueScene.addEventListener('mousedown', ev => {
@@ -1926,7 +1938,6 @@
   });
   document.getElementById('dodge-btn-title').addEventListener('click', () => {
     AudioManager.play('select');
-    storyMode = false;
     switchScreen(STATE.TITLE);
   });
 
@@ -1944,7 +1955,7 @@
     trail = [];
     particles = [];
     windParticles = [];
-    storyMode = false;
+    hideBattlePrompt();
     switchScreen(STATE.TITLE);
   });
 
@@ -2630,10 +2641,8 @@
   function showDodgeResult() {
     const win = DODGE.outcome === 'win';
     const outEl = document.getElementById('dodge-res-outcome');
-    const storyPrefix = (storyMode && win) ? '★ STORY CLEAR ★ ' : '';
-    outEl.textContent = storyPrefix + (win ? 'YOU WIN' : 'YOU LOSE');
+    outEl.textContent = win ? 'YOU WIN' : 'YOU LOSE';
     outEl.style.color = win ? '#7cfc00' : '#ff5252';
-    if (storyMode && win) localStorage.setItem('mhsc_story_clear', '1');
     document.getElementById('dodge-res-rounds').textContent = String(Math.max(1, DODGE.round));
 
     const stars = Math.round(DODGE.difficulty * 5);
