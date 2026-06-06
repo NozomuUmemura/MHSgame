@@ -22,6 +22,7 @@
     let bgmPlaying = null;
     let bgmTimeout = null;
     let fileBgmEl = null;
+    let fileBgmSrc = null, fileBgmGain = null, fileBgmRouted = false;
 
     function init() {
       if (ctx) {
@@ -140,15 +141,35 @@
         bgmPlaying = name;
         scheduleBgm(name);
       },
-      playFileBgm(src, vol) {
+      // gain で 1.0 を超える増幅が可能 (WebAudio経由)。HTML5 audio の volume は最大1.0。
+      playFileBgm(src, vol, gain) {
         this.stopBgm();
+        init();
         try {
           if (!fileBgmEl) {
             fileBgmEl = new Audio();
             fileBgmEl.loop = true;
           }
           if (fileBgmEl.src.indexOf(src) === -1) fileBgmEl.src = src;
-          fileBgmEl.volume = (vol == null ? 0.55 : vol);
+          // 一度だけ WebAudio グラフに接続 (ゲイン + コンプレッサで増幅・歪み抑制)
+          if (ctx && !fileBgmRouted) {
+            try {
+              fileBgmSrc  = ctx.createMediaElementSource(fileBgmEl);
+              fileBgmGain = ctx.createGain();
+              const comp  = ctx.createDynamicsCompressor();
+              fileBgmSrc.connect(fileBgmGain);
+              fileBgmGain.connect(comp);
+              comp.connect(ctx.destination);
+              fileBgmRouted = true;
+            } catch (e) { fileBgmRouted = false; }
+          }
+          if (fileBgmRouted && fileBgmGain) {
+            fileBgmGain.gain.value = (gain == null ? 1 : gain);
+            fileBgmEl.volume = Math.min(1, (vol == null ? 0.55 : vol));
+          } else {
+            // WebAudio不可: volumeのみ (最大1.0)
+            fileBgmEl.volume = Math.min(1, (vol == null ? 0.55 : vol) * (gain == null ? 1 : gain));
+          }
           fileBgmEl.currentTime = 0;
           const p = fileBgmEl.play();
           if (p && p.catch) p.catch(() => {}); // autoplay失敗は黙殺
@@ -392,7 +413,7 @@
     if (state === STATE.TITLE) { updateBestScoreDisplay(); updateDodgeButtonVisibility(); }
     if      (state === STATE.TITLE)        AudioManager.playBgm('title');
     else if (state === STATE.GAME)         AudioManager.playBgm('game');
-    else if (state === STATE.DODGE)        AudioManager.playFileBgm('tenshi.m4a', 1.0);
+    else if (state === STATE.DODGE)        AudioManager.playFileBgm('tenshi.m4a', 1.0, 5);
     else if (state === STATE.DODGE_RESULT) { /* BGM は showDodgeResult() で管理 */ }
     const map = {
       [STATE.TITLE]:        'screen-title',
@@ -438,7 +459,8 @@
     player.score  = 0;
     player.streak = 0;
     player.angleDeg = 45;
-    player.power = 50;
+    player.power = POWER_MIN;
+    charging = false;
     player.ballColor = 'yellow';
     activeBall = null;
     trail = [];
@@ -499,6 +521,9 @@
   function setupShot() {
     const nextNum = player.shot + 1;
     player.ballColor = (nextNum === 3 || nextNum === 6 || nextNum === 9) ? 'green' : 'yellow';
+    // 毎投チャージは最小から
+    player.power = POWER_MIN;
+    charging = false;
 
     // 風は毎投で新規生成
     currentWind = generateWind();
@@ -629,12 +654,15 @@
     if (currentState !== STATE.GAME) return;
     if (e.code === 'Space') {
       e.preventDefault();
-      if (!e.repeat) fire();
+      if (!e.repeat) startCharge();   // 長押しでパワーチャージ開始
       return;
     }
     keysHeld[e.code] = true;
   });
-  window.addEventListener('keyup', e => { keysHeld[e.code] = false; });
+  window.addEventListener('keyup', e => {
+    keysHeld[e.code] = false;
+    if (e.code === 'Space' && currentState === STATE.GAME) releaseCharge(); // 離して発射
+  });
 
   function bindHold(id, fn) {
     const el = document.getElementById(id);
@@ -662,31 +690,44 @@
   }
   bindHold('btn-angle-down', () => adjustAngle(-1));
   bindHold('btn-angle-up',   () => adjustAngle(+1));
-  bindHold('btn-power-down', () => adjustPower(-1));
-  bindHold('btn-power-up',   () => adjustPower(+1));
 
+  // FIRE = 長押しでパワーチャージ、離して発射
   const btnFire = document.getElementById('btn-fire');
-  let fireLatch = false;
-  function firePress(ev) {
-    if (ev) ev.preventDefault();
-    if (fireLatch) return;
-    fireLatch = true;
-    fire();
-    setTimeout(() => { fireLatch = false; }, 150);
-  }
-  btnFire.addEventListener('touchstart', firePress, { passive:false });
-  btnFire.addEventListener('mousedown', firePress);
+  function firePressStart(ev) { if (ev) ev.preventDefault(); startCharge(); }
+  function firePressEnd(ev)   { if (ev) ev.preventDefault(); releaseCharge(); }
+  btnFire.addEventListener('touchstart', firePressStart, { passive:false });
+  btnFire.addEventListener('mousedown',  firePressStart);
   btnFire.addEventListener('click', ev => ev.preventDefault());
+  // タッチ終了は開始要素(FIREボタン)に届くので、他ボタンの指を離しても誤発射しない
+  btnFire.addEventListener('touchend',    firePressEnd);
+  btnFire.addEventListener('touchcancel', firePressEnd);
+  // マウスは単一ポインタなので、ボタン外で離してもよいよう window で受ける
+  window.addEventListener('mouseup',      firePressEnd);
 
   function adjustAngle(d) {
     if (currentState !== STATE.GAME || phase !== PHASE.AIM) return;
     player.angleDeg = Math.max(5, Math.min(85, player.angleDeg + d));
     updateHUD();
   }
-  function adjustPower(d) {
-    if (currentState !== STATE.GAME || phase !== PHASE.AIM) return;
-    player.power = Math.max(10, Math.min(100, player.power + d));
+
+  // ===== チャージ(長押し)発射 =====
+  const POWER_MIN = 12;
+  const POWER_MAX = 100;
+  const CHARGE_RATE = 1.6;   // 1フレームあたりのパワー上昇量
+  let charging = false;
+  function chargeFrac() {
+    return Math.max(0, Math.min(1, (player.power - POWER_MIN) / (POWER_MAX - POWER_MIN)));
+  }
+  function startCharge() {
+    if (currentState !== STATE.GAME || phase !== PHASE.AIM || charging) return;
+    charging = true;
+    player.power = POWER_MIN;   // 押した瞬間は最小、長押しで上昇
     updateHUD();
+  }
+  function releaseCharge() {
+    if (!charging) return;
+    charging = false;
+    fire();
   }
 
   // ===== ゴール動作 =====
@@ -768,8 +809,11 @@
     if (phase === PHASE.AIM) {
       if (keysHeld['ArrowLeft']  || keysHeld['KeyA']) adjustAngle(-0.8);
       if (keysHeld['ArrowRight'] || keysHeld['KeyD']) adjustAngle(+0.8);
-      if (keysHeld['ArrowUp']    || keysHeld['KeyW']) adjustPower(+0.8);
-      if (keysHeld['ArrowDown']  || keysHeld['KeyS']) adjustPower(-0.8);
+      // 長押しチャージ中はパワーが上昇
+      if (charging) {
+        player.power = Math.min(POWER_MAX, player.power + CHARGE_RATE);
+        updateHUD();
+      }
     }
 
     if (phase === PHASE.FLY && activeBall && activeBall.alive) {
@@ -1005,6 +1049,7 @@
     drawWindParticles();
     drawCourt();
     drawCatapult();
+    drawChargeMeter();
     drawAimGuide();
     drawTrail();
     drawBall();
@@ -1345,13 +1390,20 @@
     drawWoodBeam(bx + 30, baseY - 52, 10, 12);
     ctx.fillStyle = '#caa15a'; ctx.fillRect(bx + 30, baseY - 54, 10, 3);
 
-    // ねじり縄バネ束 (横ドラム、回転しない)
-    drawTorsionDrum(pivotX, pivotY, now);
+    // チャージ量(ゲーム中の照準フェーズのみ)。バネの巻き込みに使用。
+    const cf = (currentState === STATE.GAME && phase === PHASE.AIM) ? chargeFrac() : 0;
+
+    // ねじり縄バネ束 (横ドラム、回転しない)。チャージで撚りが締まる。
+    drawTorsionDrum(pivotX, pivotY, now, cf);
 
     // ===== アーム (回転) =====
     const armLen = 80;
-    // 発射時はアームが前方(上)へ跳ね上がる
-    const ang = player.angleDeg * Math.PI / 180 + recoil * 0.4;
+    // チャージでアームが後方(上)へ反り(ばねを巻き戻す)、発射で前方へ振り抜く
+    const pull = cf * 0.85;                              // 最大 ~49° 後方へ反る
+    let armAng = player.angleDeg * Math.PI / 180 + pull;
+    armAng = Math.min(armAng, 1.62);                    // 反りすぎ防止 (~93°)
+    armAng -= recoil * 1.1;                              // 発射で前方へ振り抜き
+    const ang = armAng;
     ctx.save();
     ctx.translate(pivotX, pivotY);
     ctx.rotate(-ang);
@@ -1415,27 +1467,48 @@
     ctx.fillRect(x + 3, y + Math.floor(h / 2), Math.max(0, w - 6), 1);
   }
 
-  // ねじり縄バネ束 (機体空間で描画。撚った縄の縞 + 鉄フレーム)
-  function drawTorsionDrum(px, py, now) {
-    const w = 26, h = 22;
+  // ねじり縄バネ束 (機体空間で描画)。charge(0..1)で撚りが締まり、張力が増す。
+  function drawTorsionDrum(px, py, now, charge) {
+    charge = charge || 0;
+    const w = 26, h = 22 - charge * 3;        // 締まって少し細く
     const x = px - w / 2, y = py - h / 2;
     // 両端の鉄フレーム
     ctx.fillStyle = '#3a3e46'; ctx.fillRect(x - 4, y - 3, 4, h + 6);
     ctx.fillStyle = '#3a3e46'; ctx.fillRect(x + w, y - 3, 4, h + 6);
     ctx.fillStyle = '#6a6f78'; ctx.fillRect(x - 4, y - 3, 4, 2);
     ctx.fillStyle = '#6a6f78'; ctx.fillRect(x + w, y - 3, 4, 2);
-    // 縄束 (縦ストランド、明暗で撚りを表現)
+    // 縄束 (縦ストランド)。締まるほど色が深くなる。
     for (let i = 0; i < w; i += 2) {
-      ctx.fillStyle = ((i / 2) % 2 === 0) ? '#caa15a' : '#a07c40';
+      const lit = ((i / 2) % 2 === 0);
+      ctx.fillStyle = lit ? (charge > 0.6 ? '#b8924c' : '#caa15a') : '#9a763c';
       ctx.fillRect(x + i, y, 2, h);
     }
-    // 上下の張り出し (張力でわずかに脈動)
-    const wob = Math.max(0, Math.sin(now / 240) * 0.8 + 1);
+    // 撚りの斜めライン (時間 + チャージで流れて巻き込まれる)
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    ctx.strokeStyle = 'rgba(60,40,18,0.55)';
+    ctx.lineWidth = 1;
+    const slope = 3 + charge * 5;
+    const flow = ((now / 160) + charge * 8) % 5;
+    for (let yy = y - 5; yy < y + h + 5; yy += 5) {
+      ctx.beginPath();
+      ctx.moveTo(x,     yy + flow);
+      ctx.lineTo(x + w, yy + flow - slope);
+      ctx.stroke();
+    }
+    ctx.restore();
+    // 上下の張り出し (張力で脈動、チャージで膨らむ)
+    const wob = Math.max(0, Math.sin(now / 240) * 0.8 + 1) + charge * 1.6;
     ctx.fillStyle = '#b58e48'; ctx.fillRect(x - 1, y + 1, w + 2, 1 + wob);
-    ctx.fillStyle = '#8a6a34'; ctx.fillRect(x - 1, y + h - 3, w + 2, 2);
+    ctx.fillStyle = '#7a5e2c'; ctx.fillRect(x - 1, y + h - 3, w + 2, 2);
     // 中心軸ピン
     ctx.fillStyle = '#2a2e34'; ctx.fillRect(px - 2, py - 2, 4, 4);
     ctx.fillStyle = '#9aa0aa'; ctx.fillRect(px - 1, py - 1, 1, 1);
+    // 高チャージ: 張力スパーク
+    if (charge > 0.82) {
+      ctx.fillStyle = `rgba(255,235,150,${(0.3 + 0.3 * Math.sin(now / 60)).toFixed(2)})`;
+      ctx.fillRect(px - 1, y - 5, 2, 3);
+    }
   }
 
   // 風向きに応じてなびく旗 (機能: 風向き表示)
@@ -1487,6 +1560,30 @@
     ctx.fillStyle = base;ctx.fillRect(0, -thick/2, len, thick - 1);
     ctx.fillStyle = hi;  ctx.fillRect(0, -thick/2, len, 1);
     ctx.restore();
+  }
+
+  // ===== チャージメーター =====
+  function drawChargeMeter() {
+    if (phase !== PHASE.AIM) return;
+    const cx = LAUNCHER.x, baseY = COURT.floorY;
+    const bw = 56, bh = 7;
+    const mx = cx - bw / 2, my = baseY - 104;
+    const f = chargeFrac();
+    // 枠
+    ctx.fillStyle = '#000'; ctx.fillRect(mx - 2, my - 2, bw + 4, bh + 4);
+    ctx.strokeStyle = '#caa15a'; ctx.lineWidth = 1;
+    ctx.strokeRect(mx - 1.5, my - 1.5, bw + 3, bh + 3);
+    // 目盛り背景
+    ctx.fillStyle = '#241a10'; ctx.fillRect(mx, my, bw, bh);
+    // 充填
+    const col = f < 0.5 ? '#7cfc00' : f < 0.85 ? '#ffeb3b' : '#ff5252';
+    ctx.fillStyle = col; ctx.fillRect(mx, my, bw * f, bh);
+    // MAX時の点滅
+    if (f >= 1) {
+      ctx.fillStyle = (Math.floor(performance.now() / 120) % 2 === 0) ? '#fff' : '#ff5252';
+      ctx.fillRect(mx, my, bw, bh);
+    }
+    pixelText(charging ? 'CHARGE!' : 'POWER', cx, my - 10, 6, charging ? '#fff' : '#9a8a6a', 'center');
   }
 
   // ===== ガイド線 (風と移動ゴールを考慮) =====
